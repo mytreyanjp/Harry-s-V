@@ -327,6 +327,28 @@ body {
   transition: width 0.08s;
 }
 
+/* ── MUTE BUTTON ─────────────────────────────── */
+#muteBtn {
+  position: absolute;
+  top: 12px; right: 88px;
+  width: 44px; height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #ddd;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 20;
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#muteBtn:hover, #muteBtn:active { border-color: var(--gold); }
+
 /* ── MINIMAP ─────────────────────────────────── */
 #minimapCanvas {
   position: absolute;
@@ -369,6 +391,8 @@ body {
     <img id="stealthImg" src="assets/ui/emote_alert.png">
     <div id="stealthLabel">Hidden</div>
   </div>
+
+  <button id="muteBtn">🔊</button>
 
   <div id="msgBox"></div>
   <div id="pourBar"><div id="pourFill"></div></div>
@@ -834,6 +858,7 @@ const SndConfig = {
 const Audio_ = (() => {
   const tracks = {};
   let initialized = false;
+  let _muted = false;
 
   return {
     init() {
@@ -843,16 +868,26 @@ const Audio_ = (() => {
         const a = new Audio(cfg.src);
         a.volume = cfg.vol;
         a.loop = cfg.loop || false;
+        a.muted = _muted;
         tracks[key] = a;
       }
+    },
+    toggleMute() {
+      _muted = !_muted;
+      for (const key in tracks) {
+        tracks[key].muted = _muted;
+      }
+      return _muted;
     },
     play(key, playbackRate = 1.0) {
       if (!tracks[key]) return;
       if (tracks[key].loop) {
+        tracks[key].muted = _muted;
         tracks[key].play().catch(()=>{});
       } else {
         const a = tracks[key].cloneNode();
         a.volume = tracks[key].volume;
+        a.muted = _muted;
         a.playbackRate = playbackRate;
         a.play().catch(()=>{});
       }
@@ -1541,6 +1576,12 @@ class Game {
         this.dialogueIndex++;
         this.showDialogueStep();
       }
+    });
+
+    const muteBtn = document.getElementById('muteBtn');
+    muteBtn.addEventListener('click', () => {
+      muteBtn.textContent = Audio_.toggleMute() ? '🔇' : '🔊';
+      muteBtn.blur(); // Remove focus to prevent SPACE from triggering it again
     });
 
     const initAudio = () => {
