@@ -1,0 +1,2128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Harry's V</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --gold: #f1c40f;
+  --red: #e74c3c;
+  --green: #2ecc71;
+  --blue: #3498db;
+  --dark: #0a0a1a;
+  --panel: rgba(8,8,20,0.88);
+  --border: rgba(255,255,255,0.08);
+}
+
+body {
+  background: #111820;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+  touch-action: none;
+}
+
+#gameWrapper {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#gameCanvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ── HUD ─────────────────────────────────────── */
+#hud {
+  position: absolute;
+  top: 12px; left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  backdrop-filter: blur(4px);
+}
+
+.hud-icon {
+  width: 18px; height: 18px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.hud-label {
+  color: #666;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  width: 46px;
+}
+
+.bar-track {
+  width: 88px; height: 7px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.12s ease;
+}
+
+#noiseFill { background: linear-gradient(90deg,#2ecc71,#f39c12,#e74c3c); }
+#bucketFill { background: linear-gradient(90deg,#5dade2,#ecf0f1); }
+#tubeFillBar { background: linear-gradient(90deg,#9b59b6,#ecf0f1); }
+
+.hud-val {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ── STEALTH ─────────────────────────────────── */
+#stealthPanel {
+  position: absolute;
+  top: 12px; right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+  transition: border-color 0.4s;
+}
+
+#stealthPanel.danger { border-color: rgba(231,76,60,0.5); }
+#stealthPanel.uneasy { border-color: rgba(230,126,34,0.4); }
+
+#stealthImg {
+  width: 28px; height: 28px;
+  image-rendering: pixelated;
+  transition: filter 0.3s, opacity 0.3s;
+}
+
+#stealthLabel {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: color 0.3s;
+  color: var(--green);
+}
+
+/* ── MESSAGE BOX ─────────────────────────────── */
+#msgBox {
+  position: absolute;
+  bottom: 80px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: #ddd;
+  padding: 7px 18px;
+  font-size: 12px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+  z-index: 25;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(6px);
+}
+
+/* ── MOBILE CONTROLS ─────────────────────────── */
+#mobileControls {
+  display: none;
+  position: absolute;
+  bottom: 80px; left: 0;
+  width: 100%; height: 200px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#joystickZone {
+  position: absolute;
+  bottom: 28px; left: 28px;
+  width: 124px; height: 124px;
+  pointer-events: all;
+}
+
+#joystickBase {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 2px solid rgba(255,255,255,0.18);
+}
+
+#joystickKnob {
+  position: absolute;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  border: 2px solid rgba(255,255,255,0.55);
+  top: 37px; left: 37px;
+  transition: transform 0.04s;
+}
+
+.mobileBtn {
+  position: absolute;
+  border-radius: 50%;
+  font-size: 10px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  border: 2px solid rgba(255,255,255,0.35);
+  background: rgba(0,0,0,0.45);
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(4px);
+  gap: 2px;
+}
+
+#btnPump   { width: 66px; height: 66px; bottom: 106px; right: 28px; border-color: rgba(52,152,219,0.7); font-size: 12px; }
+#btnInteract{ width: 56px; height: 56px; bottom: 58px;  right: 106px; border-color: rgba(46,204,113,0.7); }
+#btnPickup { width: 56px; height: 56px; bottom: 140px;  right: 106px; border-color: rgba(231,76,60,0.7); }
+#btnSprint { width: 56px; height: 56px; bottom: 300px; left: 329px; border-color: rgba(243, 156, 18, 0.7); }
+
+/* ── SCREENS ─────────────────────────────────── */
+.screen {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6,6,18,0.94);
+  pointer-events: all;
+}
+.screen.active { display: flex; }
+
+.screen-title {
+  font-size: 38px;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(241,196,15,0.4);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  animation: flicker 3s infinite;
+}
+
+@keyframes flicker {
+  0%,94%,100% { opacity: 1; }
+  95% { opacity: 0.65; }
+  97% { opacity: 0.88; }
+}
+
+.screen-sub {
+  color: #556;
+  font-size: 12px;
+  margin-bottom: 28px;
+  text-align: center;
+  letter-spacing: 1px;
+  line-height: 2;
+}
+
+.btn-pixel {
+  background: transparent;
+  border: 2px solid var(--gold);
+  color: var(--gold);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  letter-spacing: 3px;
+  padding: 11px 34px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.14s;
+  margin: 4px;
+}
+.btn-pixel:hover, .btn-pixel:active {
+  background: var(--gold);
+  color: var(--dark);
+}
+
+#crownsDisplay {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 18px;
+}
+
+.crown-img {
+  width: 30px; height: 30px;
+  image-rendering: pixelated;
+  animation: popIn 0.4s backwards;
+}
+@keyframes popIn {
+  from { transform: scale(0) rotate(-20deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+#gameoverTitle { color: var(--red); text-shadow: 0 0 24px rgba(231,76,60,0.4); }
+#winTitle      { color: var(--green); text-shadow: 0 0 24px rgba(46,204,113,0.4); }
+
+.controls-info {
+  color: #3a3a55;
+  font-size: 10px;
+  text-align: center;
+  line-height: 2.2;
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* ── POUR PROGRESS BAR ───────────────────────── */
+#pourBar {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 80px; height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  transition: opacity 0.2s;
+}
+#pourFill {
+  height: 100%;
+  background: linear-gradient(90deg, #5dade2, #ecf0f1);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.08s;
+}
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-row">
+      <span class="hud-label">Noise</span>
+      <div class="bar-track"><div class="bar-fill" id="noiseFill" style="width:0%"></div></div>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Bucket</span>
+      <div class="bar-track"><div class="bar-fill" id="bucketFill" style="width:0%"></div></div>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Tube %</span>
+      <div class="bar-track"><div class="bar-fill" id="tubeFillBar" style="width:0%"></div></div>
+    </div>
+    <div class="hud-row">
+      <img class="hud-icon" src="assets/ui/tube_icon.png">
+      <span class="hud-val" id="tubeCountEl">0 / 5</span>
+    </div>
+  </div>
+
+  <div id="stealthPanel">
+    <img id="stealthImg" src="assets/ui/emote_alert.png">
+    <div id="stealthLabel">Hidden</div>
+  </div>
+
+  <div id="msgBox"></div>
+  <div id="pourBar"><div id="pourFill"></div></div>
+
+  <!-- Board Overlay -->
+  <div id="boardOverlay" style="display:none; position:absolute; inset:0; z-index:40; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
+    <div style="position:relative;">
+      <button id="closeBoardBtn" style="position:absolute; top:-12px; right:-12px; background:#e74c3c; color:white; border:2px solid #fff; border-radius:50%; width:28px; height:28px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; z-index:41; box-shadow:0 2px 5px rgba(0,0,0,0.5); font-family:monospace;">X</button>
+      <img src="assets/board.png" alt="Whiteboard" style="max-width:90vw; max-height:90vh; image-rendering:pixelated; border:3px solid #fff; border-radius:6px; box-shadow:0 0 20px rgba(0,0,0,0.8); background:#fff;">
+    </div>
+  </div>
+
+  <!-- Intro Overlay -->
+  <div id="introOverlay" style="display:none; position:absolute; inset:0; z-index:45; background:rgba(0,0,0,0.85); flex-direction:row; flex-wrap:wrap; align-items:flex-end; justify-content:center; padding: 2vh 5vw; gap: 20px;">
+    <img id="introPortrait" src="" style="width:40vw; min-width:200px; max-width:380px; height:auto; object-fit:contain; image-rendering:pixelated; margin-bottom:-15px; z-index:46; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.8));">
+    <div style="flex:1; min-width:280px; max-width:600px; background:var(--panel); border:2px solid #555; border-radius:12px; padding:20px; cursor:pointer; box-shadow: 0 0 30px rgba(0,0,0,0.9); z-index:47; position:relative; margin-bottom:5vh;">
+      <div id="introSpeaker" style="color:#fff; font-weight:bold; font-size:18px; margin-bottom:8px; text-transform:uppercase; letter-spacing:2px;"></div>
+      <div id="introText" style="color:#ddd; font-size:14px; line-height:1.6; min-height:45px;"></div>
+      <div style="color:#888; font-size:10px; margin-top:12px; text-align:right; animation:flicker 2s infinite;">Press SPACE to continue ▶</div>
+    </div>
+  </div>
+
+  <!-- Mobile Controls -->
+  <div id="mobileControls">
+    <div id="joystickZone">
+      <div id="joystickBase"></div>
+      <div id="joystickKnob"></div>
+    </div>
+    <button class="mobileBtn" id="btnPump">PUMP</button>
+    <button class="mobileBtn" id="btnPickup">PICK</button>
+    <button class="mobileBtn" id="btnInteract">POUR</button>
+    <button class="mobileBtn" id="btnSprint">SPRINT</button>
+  </div>
+
+  <!-- Start Screen -->
+  <div class="screen active" id="startScreen">
+    <div class="screen-title">Harry's V</div>
+    <button class="btn-pixel" id="btnStart">▶ Start Mission</button>
+    <div class="controls-info">
+      WASD / Arrows — Move &nbsp;|&nbsp; SHIFT — Sprint &nbsp;|&nbsp; SPACE — Pump<br>
+      E — Pick up / Drop Bucket &nbsp;|&nbsp; F — Pour Fuel into Tube
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div class="screen" id="gameoverScreen">
+    <div class="screen-title" id="gameoverTitle">BUSTED!</div>
+    <div class="screen-sub" id="gameoverReason">You were discovered.</div>
+    <button class="btn-pixel" id="btnRetry">↺ Try Again</button>
+  </div>
+
+  <!-- Win -->
+  <div class="screen" id="winScreen">
+    <div class="screen-title" id="winTitle">Mission Complete!</div>
+    <div id="crownsDisplay"></div>
+    <div class="screen-sub" id="winStats"></div>
+    <button class="btn-pixel" id="btnPlayAgain">▶ Play Again</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════
+const TILE = 32;
+const COLS = 30;
+const ROWS = 24;
+const TAU  = Math.PI * 2;
+
+const TileID = {
+  EMPTY:0, WALL:1, FLOOR_ROOM:2, FLOOR_HALL:3, FLOOR_MAIN:4,
+  GRASS:5, GRASS_DARK:6, PATH:7, WATER:8, FENCE:9,
+  DOOR:10, PUMP:11, TUBE:12, BED:13, SHELF:14,
+  COUCH:15, TABLE:16, CARPET:17, TREE:18, LANTERN:19,
+  BUCKET_SPOT:20, WINDOW:21, TAP:22, PLANT:23, BOARD:24,
+};
+const T = TileID;
+
+const SOLID = new Set([
+  T.WALL, T.BED, T.SHELF, T.COUCH, T.TABLE, T.PUMP, T.TUBE,
+  T.FENCE, T.TREE, T.WATER, T.WINDOW, T.TAP, T.BOARD,
+]);
+
+// ═══════════════════════════════════════════════════════════════════════
+//  IMAGE LOADER
+// ═══════════════════════════════════════════════════════════════════════
+function img(src) { const i = new Image(); i.src = src; return i; }
+
+const Img = {
+  // Tiles
+  grassDk1:    img('assets/tiles/grass_dark1.png'),
+  grassDk2:    img('assets/tiles/grass_dark2.png'),
+  path:        img('assets/tiles/path.png'),
+  floorR1:     img('assets/tiles/floor_room1.png'),
+  floorR2:     img('assets/tiles/floor_room2.png'),
+  floorR3:     img('assets/tiles/floor_room3.png'),
+  floorH:      img('assets/tiles/floor_hall.png'),
+  floorM1:     img('assets/tiles/floor_main1.png'),
+  floorM2:     img('assets/tiles/floor_main2.png'),
+  // Objects
+  wall:        img('assets/objects/wall.png'),
+  bed:         img('assets/objects/bed.png'),
+  shelf:       img('assets/objects/shelf.png'),
+  couch:       img('assets/objects/couch.png'),
+  table_:      img('assets/objects/table.png'),
+  carpet:      img('assets/objects/carpet.png'),
+  lantern:     img('assets/objects/latern.png'),
+  window_:     img('assets/objects/window.png'),
+  treeTrunk:   img('assets/objects/tree_trunk.png'),
+  treeLeaves:  img('assets/objects/tree_leaves.png'),
+  plant:       img('assets/objects/plant.png'),
+  hFence:      img('assets/objects/horizontal_fence.png'),
+  vFence:      img('assets/objects/vertical_fence.png'),
+  // Interactive
+  pump:        img('assets/interactive/pump.png'),
+  activePump:  img('assets/interactive/active_pump.png'),
+  bucketE:     img('assets/interactive/bucket_empty.png'),
+  bucketF:     img('assets/interactive/bucket_filled.png'),
+  tap:         img('assets/interactive/tap.png'),
+  tapWater:    img('assets/interactive/tap_water.png'),
+  tubeE:       img('assets/interactive/tube_empty.png'),
+  tubeF:       img('assets/interactive/tube_filled.png'),
+  // Harry sprites
+  hFrontL:     img('assets/characters/hari/front_walk_leftfoot.png'),
+  hFrontR:     img('assets/characters/hari/front_walk_rightfoot.png'),
+  hFrontB:     img('assets/characters/hari/front_walk_bucket.png'),
+  hBackL:      img('assets/characters/hari/back_walk_leftfoot.png'),
+  hBackR:      img('assets/characters/hari/back_walk_rightfoot.png'),
+  hBackB:      img('assets/characters/hari/back_walk_bucket.png'),
+  hLeft:       img('assets/characters/hari/left_walk.png'),
+  hLeftB:      img('assets/characters/hari/left_walk_bucket.png'),
+  hRight:      img('assets/characters/hari/right_walk.png'),
+  hRightB:     img('assets/characters/hari/right_walk_bucket.png'),
+  hPump:       img('assets/characters/hari/pumping.png'),
+  hTube:       img('assets/characters/hari/tube_filling.png'),
+  hBusted:     img('assets/characters/hari/busted.png'),
+  hIdle:       img('assets/characters/hari/idle.png'),
+  // Gardener sprites
+  gFront:      img('assets/characters/gardener/walk_front.png'),
+  gBack:       img('assets/characters/gardener/walk_back.png'),
+  gLeft:       img('assets/characters/gardener/walk_left.png'),
+  gRight:      img('assets/characters/gardener/walk_right.png'),
+  gIdleL:      img('assets/characters/gardener/left_idle.png'),
+  gIdleR:      img('assets/characters/gardener/right_idle.png'),
+  gWater:      img('assets/characters/gardener/watering.png'),
+  gRefill:     img('assets/characters/gardener/refilling_water.png'),
+  gSuspL:      img('assets/characters/gardener/suspicion_left.png'),
+  gSuspR:      img('assets/characters/gardener/suspicion_right.png'),
+  gAngry:      img('assets/characters/gardener/angry.png'),
+  gIdle:       img('assets/characters/gardener/idle.png'),
+  // Alchemist sprites
+  aBreath:     img('assets/characters/alchemist/breath_sleep.png'),
+  aIdle:       img('assets/characters/alchemist/idle_sleep.png'),
+  aAngry:      img('assets/characters/alchemist/angry.png'),
+  aVAngry:     img('assets/characters/alchemist/very_angry.png'),
+  // UI
+  crownIcon:   img('assets/ui/crown_icon.png'),
+  emoteAlert:  img('assets/ui/emote_alert.png'),
+  emoteZzz:    img('assets/ui/emote_zzz.png'),
+  emoteParticle: img('assets/ui/emote_particle.png'),
+  tubeIcon:    img('assets/ui/tube_icon.png'),
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SPRITE DRAW HELPER
+// ═══════════════════════════════════════════════════════════════════════
+function drawSprite(ctx, image, x, y, w = TILE, h = TILE, flipX = false) {
+  if (!image.complete || !image.naturalWidth) return false;
+  if (flipX) {
+    ctx.save();
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, 0, 0, w, h);
+    ctx.restore();
+  } else {
+    ctx.drawImage(image, x, y, w, h);
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CHARACTER TAG
+// ═══════════════════════════════════════════════════════════════════════
+function drawTag(ctx, name, cx, ty) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 9px Courier New';
+  const label = name;
+  const tw = ctx.measureText(label).width;
+  const pw = tw + 10, ph = 13;
+  const bx = cx - pw / 2, by = ty - ph - 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, pw, ph, 3);
+  ctx.fill();
+  ctx.fillStyle = '#c8c8d8';
+  ctx.fillText(label, cx, ty - 5);
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAP BUILDER
+// ═══════════════════════════════════════════════════════════════════════
+function buildMap() {
+  const m = Array.from({length: ROWS}, () => new Array(COLS).fill(T.EMPTY));
+  const set  = (r,c,v) => { if (r>=0&&r<ROWS&&c>=0&&c<COLS) m[r][c]=v; };
+  const fill = (r1,c1,r2,c2,v) => { for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) set(r,c,v); };
+  const walls= (r1,c1,r2,c2) => {
+    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++)
+      if (r===r1||r===r2||c===c1||c===c2) set(r,c,T.WALL);
+  };
+
+  // Harry's Room (rows 0-9, cols 0-11)
+  fill(0,0,9,11, T.FLOOR_ROOM);
+  walls(0,0,9,11);
+  set(7,11, T.FLOOR_ROOM); set(8,11, T.FLOOR_ROOM); // east opening
+  fill(1,1,2,2, T.BED);
+  fill(1,6,1,10, T.SHELF);
+  fill(4,8,5,9, T.PUMP);
+  set(6,8, T.BUCKET_SPOT);
+  set(0,4, T.WINDOW); set(0,7, T.WINDOW);
+  set(0,5, T.BOARD); set(0,6, T.BOARD);
+  set(8, 2, T.COUCH);
+  fill(7, 4, 8, 5, T.TABLE);
+
+  // Vertical Hallway (rows 0-9, cols 12-13)
+  fill(0,12,9,13, T.FLOOR_HALL);
+  set(0,12, T.WALL); set(0,13, T.WALL);
+  set(1,12, T.TAP); set(1,13, T.WALL);
+
+  // Horizontal Hallway (rows 10-13, cols 0-13)
+  fill(10,0,13,13, T.FLOOR_HALL);
+  for(let c=0;c<=11;c++) set(10,c, T.WALL);
+  for(let c=0;c<=13;c++) set(13,c, T.WALL);
+  for(let r=10;r<=13;r++) set(r,0, T.WALL);
+  set(13,3, T.DOOR); set(13,4, T.DOOR);
+
+  // Main Room (rows 0-13, cols 14-29)
+  fill(0,14,13,29, T.FLOOR_MAIN);
+  walls(0,14,13,29);
+  set(11,14, T.DOOR); set(12,14, T.DOOR);
+  fill(4,20,7,24, T.CARPET);
+  set(5,22, T.COUCH);
+  fill(2,18,3,21, T.TABLE);
+  fill(6,14,6,15, T.SHELF);
+  fill(8,18,9,21, T.TABLE);
+  fill(10,23,11,23, T.SHELF);
+  set(0,17,T.WINDOW); set(0,21,T.WINDOW); set(0,25,T.WINDOW);
+  set(1,15,T.LANTERN); set(3,27,T.LANTERN); set(9,27,T.LANTERN); set(10,17,T.LANTERN);
+  set(10,26, T.TUBE); set(10,27, T.TUBE);
+
+  // Garden (rows 14-23, cols 0-29)
+  fill(14,0,23,29, T.GRASS);
+  for(let r=14;r<=23;r++) for(let c=0;c<=29;c++) {
+    if ((r+c)%7<2) set(r,c, T.GRASS_DARK);
+    else if ((r * 17 + c * 23) % 15 === 0) set(r,c, T.PLANT);
+  }
+  fill(14,2,23,5, T.PATH);
+  fill(23,0,23,29, T.FENCE);
+  [[15,8],[15,12],[16,20],[17,25],[18,10],[20,15],[19,7],[21,22]].forEach(([r,c]) => {
+    set(r,c, T.TREE); set(r-1,c, T.TREE);
+  });
+  fill(14,0,14,29, T.PATH);
+  for(let r=14;r<=23;r++) { set(r,29,T.FENCE); set(r,0,T.FENCE); }
+
+  return m;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TILE RENDERER
+// ═══════════════════════════════════════════════════════════════════════
+function drawTile(ctx, c, r, tile, sx, sy, frame, state, deferred) {
+  const x = sx, y = sy;
+
+  // Floor under objects
+  const floorUnder = (flImg) => drawSprite(ctx, flImg, x, y);
+
+  switch(tile) {
+    case T.GRASS:
+    case T.GRASS_DARK:
+      drawSprite(ctx, Math.abs((c * 7 + r * 13) % 8) === 0 ? Img.grassDk1 : Img.grassDk2, x, y); return;
+    case T.PATH:
+      drawSprite(ctx, Img.path, x, y); return;
+    case T.FLOOR_ROOM:
+      drawSprite(ctx, [Img.floorR1,Img.floorR2,Img.floorR3][(c+r*3)%3], x, y); return;
+    case T.FLOOR_HALL:
+      drawSprite(ctx, Img.floorH, x, y); return;
+    case T.FLOOR_MAIN:
+      drawSprite(ctx, (c*3+r)%2===0 ? Img.floorM1 : Img.floorM2, x, y); return;
+    case T.WALL:
+      drawSprite(ctx, Img.wall, x, y); return;
+    case T.BED:
+      floorUnder(Img.floorR1);
+      if (window._map[r-1]?.[c] !== T.BED && window._map[r]?.[c-1] !== T.BED) {
+        let bw = 1, bh = 1;
+        while(window._map[r]?.[c+bw] === T.BED) bw++;
+        while(window._map[r+bh]?.[c] === T.BED) bh++;
+        if (deferred) {
+          deferred.push(() => drawSprite(ctx, Img.bed, x, y, TILE * bw, TILE * bh));
+        } else {
+          drawSprite(ctx, Img.bed, x, y, TILE * bw, TILE * bh);
+        }
+      }
+      return;
+    case T.SHELF:
+      floorUnder((r <= 9 && c <= 11) ? Img.floorR1 : Img.floorM1);
+      drawSprite(ctx, Img.shelf, x, y); return;
+    case T.COUCH:
+      floorUnder((r <= 9 && c <= 11) ? Img.floorR1 : Img.floorM1);
+      drawSprite(ctx, Img.couch, x, y); return;
+    case T.TABLE:
+      floorUnder((r <= 9 && c <= 11) ? Img.floorR1 : Img.floorM1);
+      if (window._map[r-1]?.[c] !== T.TABLE && window._map[r]?.[c-1] !== T.TABLE) {
+        let bw = 1, bh = 1;
+        while(window._map[r]?.[c+bw] === T.TABLE) bw++;
+        while(window._map[r+bh]?.[c] === T.TABLE) bh++;
+        const renderTable = () => {
+          if (!drawSprite(ctx, Img.table_, x, y, TILE * bw, TILE * bh)) {
+            ctx.fillStyle = '#7d5a3c'; ctx.fillRect(x+2, y+8, (TILE*bw)-4, (TILE*bh)-16);
+          }
+        };
+        if (deferred) deferred.push(renderTable);
+        else renderTable();
+      }
+      return;
+    case T.BOARD:
+      drawSprite(ctx, Img.wall, x, y);
+      if (window._map[r]?.[c-1] !== T.BOARD) {
+        let bw = 1;
+        while(window._map[r]?.[c+bw] === T.BOARD) bw++;
+        const renderBoard = () => {
+          ctx.fillStyle = '#ecf0f1';
+          ctx.fillRect(x + 2, y + 12, (TILE*bw)-4, 6);
+        };
+        if (deferred) deferred.push(renderBoard);
+        else renderBoard();
+      }
+      return;
+    case T.CARPET:
+      floorUnder(Img.floorM1);
+      drawSprite(ctx, Img.carpet, x, y); return;
+    case T.WINDOW:
+      drawSprite(ctx, Img.wall, x, y);
+      drawSprite(ctx, Img.window_, x, y); return;
+    case T.LANTERN:
+      floorUnder(Img.floorM1);
+      drawSprite(ctx, Img.lantern, x, y);
+      // glow
+      { const g = ctx.createRadialGradient(x+16,y+14,2,x+16,y+14,TILE*1.6);
+        g.addColorStop(0,'rgba(255,190,50,0.15)'); g.addColorStop(1,'rgba(255,190,50,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x+16,y+14,TILE*1.6,0,TAU); ctx.fill(); }
+      return;
+    case T.TREE:
+      drawSprite(ctx, Math.abs((c * 7 + r * 13) % 8) === 0 ? Img.grassDk1 : Img.grassDk2, x, y);
+      if (window._map[r+1]?.[c] !== T.TREE) {
+        drawSprite(ctx, Img.treeTrunk, x, y);
+        drawSprite(ctx, Img.treeLeaves, x - TILE/2, y - TILE*1.25, TILE * 2, TILE * 2);
+      }
+      return;
+    case T.PLANT:
+      drawSprite(ctx, Math.abs((c * 7 + r * 13) % 8) === 0 ? Img.grassDk1 : Img.grassDk2, x, y);
+      drawSprite(ctx, Img.plant, x, y); return;
+    case T.FENCE: {
+      drawSprite(ctx, Img.grassDk2, x, y);
+      const isVertical = (window._map[r-1]?.[c] === T.FENCE || window._map[r+1]?.[c] === T.FENCE) &&
+                         window._map[r]?.[c-1] !== T.FENCE && window._map[r]?.[c+1] !== T.FENCE;
+      drawSprite(ctx, isVertical ? Img.vFence : Img.hFence, x, y); 
+      return;
+    }
+    case T.PUMP:
+      floorUnder(Img.floorR1);
+      if (window._map[r-1]?.[c] !== T.PUMP && window._map[r]?.[c-1] !== T.PUMP) {
+        let bw = 1, bh = 1;
+        while(window._map[r]?.[c+bw] === T.PUMP) bw++;
+        while(window._map[r+bh]?.[c] === T.PUMP) bh++;
+        if (deferred) {
+          deferred.push(() => drawSprite(ctx, state.pumpActive ? Img.activePump : Img.pump, x, y, TILE * bw, TILE * bh));
+        } else {
+          drawSprite(ctx, state.pumpActive ? Img.activePump : Img.pump, x, y, TILE * bw, TILE * bh);
+        }
+      }
+      return;
+    case T.TUBE:
+      floorUnder(Img.floorM1);
+      drawSprite(ctx, state.tubeFill > 0 ? Img.tubeF : Img.tubeE, x + 6, y + 6, 20, 20); return;
+    case T.TAP:
+      drawSprite(ctx, Img.floorH, x, y);
+      drawSprite(ctx, frame%60<30 ? Img.tapWater : Img.tap, x, y); return;
+    case T.DOOR: {
+      drawSprite(ctx, Img.floorH, x, y);
+      const prog = state.doorProgress(r,c);
+      const pOff = (TILE/2)*prog, hs = (TILE/2)-pOff;
+      if (hs > 0) {
+        ctx.fillStyle = '#935116';
+        ctx.fillRect(x+4,y,TILE-8,hs);
+        ctx.fillRect(x+4,y+TILE/2+pOff,TILE-8,hs);
+        ctx.fillStyle = '#7f5700';
+        if (hs>4){ ctx.fillRect(x+6,y+2,TILE-12,hs-4); ctx.fillRect(x+6,y+TILE/2+pOff+2,TILE-12,hs-4); }
+      }
+      return;
+    }
+    case T.BUCKET_SPOT:
+      floorUnder(Img.floorR1);
+      ctx.save(); ctx.globalAlpha=0.4; ctx.strokeStyle='#bdc3c7';
+      ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+      ctx.strokeRect(x+8,y+8,TILE-16,TILE-16);
+      ctx.setLineDash([]); ctx.restore(); return;
+    case T.WATER:
+      ctx.fillStyle = (Math.floor(frame/20)+c+r)%2===0 ? '#1a6b8a':'#1a85aa';
+      ctx.fillRect(x,y,TILE,TILE); return;
+    default:
+      ctx.fillStyle='#111'; ctx.fillRect(x,y,TILE,TILE);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  NOISE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+const Noise = {
+  level: 0, MAX: 100,
+  add(v)   { this.level = Math.min(this.MAX, this.level + v); },
+  decay()  { this.level = Math.max(0, this.level - 0.38); },
+  get ratio() { return this.level / this.MAX; },
+  reset()  { this.level = 0; },
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MESSAGE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+const Msg = {
+  el: null, timer: 0,
+  init() { this.el = document.getElementById('msgBox'); },
+  show(text, ms=2000) {
+    this.el.textContent = text;
+    this.el.style.opacity = '1';
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.el.style.opacity='0', ms);
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  AUDIO SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+//  AUDIO SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+const SndConfig = {
+  theme:    { src: 'assets/sound/main_theme.mp3', vol: 0.3, loop: true },
+  pickup:   { src: 'assets/sound/bucket.mp3', vol: 0.8 },
+  pump:     { src: 'assets/sound/pumping.mp3', vol: 0.9 },
+  pour:     { src: 'assets/sound/watering.mp3', vol: 0.7, loop: true },
+  growl:    { src: 'assets/sound/Angry_grunt.mp3', vol: 0.8 },
+  refill:   { src: 'assets/sound/Refilling.mp3', vol: 0.6, loop: true },
+  water:    { src: 'assets/sound/watering.mp3', vol: 0.6, loop: true },
+  yell:     { src: 'assets/sound/yelling.mp3', vol: 0.9 },
+  busted:   { src: 'assets/sound/busted.mp3', vol: 0.8 },
+  gameover: { src: 'assets/sound/Game_over.mp3', vol: 0.8 },
+  win:      { src: 'assets/sound/win.mp3', vol: 0.8 }
+};
+
+const Audio_ = (() => {
+  const tracks = {};
+  let initialized = false;
+
+  return {
+    init() {
+      if (initialized) return;
+      initialized = true;
+      for (const [key, cfg] of Object.entries(SndConfig)) {
+        const a = new Audio(cfg.src);
+        a.volume = cfg.vol;
+        a.loop = cfg.loop || false;
+        tracks[key] = a;
+      }
+    },
+    play(key, playbackRate = 1.0) {
+      if (!tracks[key]) return;
+      if (tracks[key].loop) {
+        tracks[key].play().catch(()=>{});
+      } else {
+        const a = tracks[key].cloneNode();
+        a.volume = tracks[key].volume;
+        a.playbackRate = playbackRate;
+        a.play().catch(()=>{});
+      }
+    },
+    stop(key) {
+      if (!tracks[key]) return;
+      tracks[key].pause();
+      tracks[key].currentTime = 0;
+    },
+    setVolume(key, vol) {
+      if (tracks[key]) {
+        tracks[key].volume = vol;
+        SndConfig[key].vol = vol;
+      }
+    },
+    theme()    { this.play('theme'); },
+    stopTheme(){ this.stop('theme'); },
+    pump()     { this.play('pump'); },
+    pickup()   { this.play('pickup'); },
+    startPour(){ this.play('pour'); },
+    stopPour() { this.stop('pour'); },
+    busted()   { this.stopPour(); this.stop('refill'); this.stop('water'); this.play('busted'); },
+    alert()    { this.play('busted'); }, 
+    gameover() { this.stopTheme(); this.stopPour(); this.stop('refill'); this.stop('water'); this.play('gameover'); },
+    win()      { this.stopTheme(); this.stopPour(); this.stop('refill'); this.stop('water'); this.play('win'); },
+    yell()     { this.play('yell'); },
+    growl()    { this.play('growl'); },
+    water()    { this.play('water'); },
+    refill()   { this.play('refill'); }
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PARTICLE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+class Particles {
+  constructor() { this.list=[]; }
+  emit(x,y,{vx=0,vy=-1,spread=2,life=60,color='#fff',size=3,text=null,img_=null}={}) {
+    this.list.push({
+      x,y,
+      vx: vx+(Math.random()-.5)*spread,
+      vy: vy+(Math.random()-.5)*spread,
+      life, maxLife:life, color, size, text, img_,
+      alpha:1,
+    });
+  }
+  update() {
+    this.list = this.list.filter(p => {
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.life--;
+      p.alpha = p.life/p.maxLife;
+      return p.life>0;
+    });
+  }
+  draw(ctx, cx=0, cy=0) {
+    this.list.forEach(p => {
+      ctx.save(); ctx.globalAlpha=p.alpha;
+      const sx=p.x-cx, sy=p.y-cy;
+      if (p.img_) {
+        ctx.drawImage(p.img_, sx-p.size/2, sy-p.size/2, p.size, p.size);
+      } else if (p.text) {
+        ctx.font=`bold ${p.size}px Courier New`; ctx.fillStyle=p.color;
+        ctx.fillText(p.text, sx, sy);
+      } else {
+        ctx.fillStyle=p.color; ctx.fillRect(sx-p.size/2, sy-p.size/2, p.size, p.size);
+      }
+      ctx.restore();
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  VISION CONE (raycasted)
+// ═══════════════════════════════════════════════════════════════════════
+function castCone(ctx, ox, oy, angle, fov, range, map, isCutout=false) {
+  ctx.save(); 
+  if (isCutout) {
+    ctx.globalAlpha = 1;
+    const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, range);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+  } else {
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#ffff00';
+  }
+  ctx.beginPath(); ctx.moveTo(ox,oy);
+  const STEPS=32;
+  for (let i=0;i<=STEPS;i++) {
+    const a = angle - fov/2 + fov*i/STEPS;
+    const dx=Math.cos(a), dy=Math.sin(a);
+    let rx=ox, ry=oy;
+    for (let d=0;d<range;d+=3) {
+      const nx=ox+dx*d, ny=oy+dy*d;
+      const tc=Math.floor(nx/TILE), tr=Math.floor(ny/TILE);
+      if (SOLID.has(map[tr]?.[tc]) && map[tr]?.[tc]!==T.DOOR) break;
+      rx=nx; ry=ny;
+    }
+    ctx.lineTo(rx,ry);
+  }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function inCone(px,py,ox,oy,angle,fov,range,map) {
+  const dx=px-ox, dy=py-oy;
+  if (dx*dx+dy*dy>range*range) return false;
+  let da=Math.atan2(dy,dx)-angle;
+  while(da>Math.PI) da-=TAU; while(da<-Math.PI) da+=TAU;
+  if (Math.abs(da)>fov/2) return false;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  const sx=dx/dist, sy=dy/dist;
+  for (let d=0;d<dist;d+=3) {
+    const tc=Math.floor((ox+sx*d)/TILE), tr=Math.floor((oy+sy*d)/TILE);
+    if (SOLID.has(map[tr]?.[tc]) && map[tr]?.[tc]!==T.DOOR) return false;
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SPRITE ANIMATOR — frame-based with configurable framerate
+// ═══════════════════════════════════════════════════════════════════════
+class Animator {
+  constructor(framesPerImage=10) {
+    this._tick=0; this._frame=0; this._fps=framesPerImage;
+  }
+  tick(count=2) { this._tick++; if(this._tick>=this._fps){this._tick=0;this._frame=(this._frame+1)%count;} }
+  get frame() { return this._frame; }
+  reset() { this._tick=0; this._frame=0; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PLAYER
+// ═══════════════════════════════════════════════════════════════════════
+class Player {
+  constructor() {
+    this.x = 2*TILE; this.y = 5*TILE;
+    this.speed = 2;
+    this.dir   = 0; // 0=down 1=up 2=left 3=right
+    this.state = 'idle'; // idle walking sprinting carrying pumping pouring detected
+    this.hasBucket  = false;
+    this.bucketFill = 0;
+    this.footTimer  = 0;
+    this.anim = new Animator(10);
+    this.shadowAlpha = 0.25;
+  }
+
+  noiseMult(map) {
+    const tc=Math.floor((this.x+16)/TILE), tr=Math.floor((this.y+16)/TILE);
+    if (tr<=13&&tc>=14) return 2.0; // Main Room
+    if (tr>=14) return 0.5;         // Garden
+    if (tr>=10&&tc<=13) return 1.2; // Hallway
+    return 1.0;
+  }
+
+  update(input, map) {
+    let mx=0, my=0;
+    if (input.left)  mx-=1;
+    if (input.right) mx+=1;
+    if (input.up)    my-=1;
+    if (input.down)  my+=1;
+    if (input.jx||input.jy) { mx=input.jx; my=input.jy; }
+
+    const len=Math.sqrt(mx*mx+my*my);
+    if (len>0) { mx/=len; my/=len; }
+
+    const sprinting = input.shift && !this.hasBucket;
+    const spd = this.hasBucket ? this.speed*0.68 : sprinting ? this.speed*1.85 : this.speed;
+
+    const prevX = this.x, prevY = this.y;
+    const nx=this.x+mx*spd, ny=this.y+my*spd;
+    if (!this._collides(nx, this.y, map)) this.x=nx;
+    if (!this._collides(this.x, ny, map)) this.y=ny;
+
+    if (Math.abs(mx)>Math.abs(my)) this.dir = mx>0?3:2;
+    else if (my!==0) this.dir = my>0?0:1;
+
+    const moving = len>0.1 && (this.x !== prevX || this.y !== prevY);
+    if (moving) {
+      this.state = this.hasBucket ? 'carrying' : sprinting ? 'sprinting' : 'walking';
+      this.anim.tick(2);
+      this.footTimer++;
+      const interval = sprinting?12:24;
+      if (this.footTimer>=interval) {
+        this.footTimer=0;
+        Noise.add((this.hasBucket?3:sprinting?8:1.5)*this.noiseMult(map));
+      }
+    } else {
+      if (this.state==='walking'||this.state==='sprinting'||this.state==='carrying')
+        this.state = this.hasBucket ? 'carrying' : 'idle';
+      this.anim.reset();
+    }
+  }
+
+  _collides(nx, ny, map) {
+    const m=6;
+    for (const [px,py] of [[nx+m,ny+m],[nx+TILE-m,ny+m],[nx+m,ny+TILE-m],[nx+TILE-m,ny+TILE-m]]) {
+      const tc=Math.floor(px/TILE), tr=Math.floor(py/TILE);
+      const t=map[tr]?.[tc];
+      if (SOLID.has(t) && t!==T.PUMP && t!==T.TUBE && t!==T.BUCKET_SPOT) return true;
+      if (t===undefined||t===T.EMPTY) return true;
+    }
+    return false;
+  }
+
+  draw(ctx, camX, camY, globalFrame) {
+    const sx=this.x-camX, sy=this.y-camY;
+
+    // Shadow
+    ctx.save(); ctx.globalAlpha=this.shadowAlpha;
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.ellipse(sx+16,sy+30,8,3,0,0,TAU); ctx.fill();
+    ctx.restore();
+
+    // Sprite selection
+    const f = this.anim.frame; // 0 or 1
+    let spr;
+    switch(this.state) {
+      case 'detected': spr=Img.hBusted; break;
+      case 'pumping':  spr=Img.hPump; break;
+      case 'pouring':  spr=Img.hTube; break;
+      case 'carrying':
+        if (this.dir===1) spr = f===0?Img.hBackB:Img.hBackB;
+        else if (this.dir===2) spr = Img.hLeftB;
+        else if (this.dir===3) spr = Img.hRightB;
+        else spr = Img.hFrontB;
+        break;
+      case 'walking': case 'sprinting':
+        if (this.dir===1) spr = f===0?Img.hBackL:Img.hBackR;
+        else if (this.dir===2) spr = Img.hLeft;
+        else if (this.dir===3) spr = Img.hRight;
+        else spr = f===0?Img.hFrontL:Img.hFrontR;
+        break;
+      default: // idle
+        if (this.dir===1) spr=Img.hBackL;
+        else if (this.dir===2) spr=Img.hLeft;
+        else if (this.dir===3) spr=Img.hRight;
+        else spr=Img.hFrontL;
+    }
+    drawSprite(ctx, spr, sx, sy);
+
+    drawTag(ctx,'Harry',sx+16,sy-2);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  GARDENER AI  — smarter patrol with state machine
+// ═══════════════════════════════════════════════════════════════════════
+const GState = { PATROL:'patrol', INVESTIGATE:'investigate', ALERT:'alert' };
+
+class Gardener {
+  constructor() {
+    this.waypoints = [
+      {c:15,r:16,action:'water',  dir:0, dur:600},
+      {c:15,r:14,action:'walk'},
+      {c:3, r:14,action:'walk'},
+      {c:3, r:11,action:'walk'},
+      {c:12,r:11,action:'walk'},
+      {c:12,r:2, action:'fill',  dir:1, dur:600},
+      {c:12,r:8, action:'walk'},
+      {c:10,r:8, action:'walk'},
+      {c:10,r:5, action:'peek',  dir:2, dur:100},
+      {c:10,r:8, action:'walk'},
+      {c:12,r:8, action:'walk'},
+      {c:12,r:11,action:'walk'},
+      {c:16,r:11,action:'walk'},
+      {c:16,r:5, action:'walk'},
+      {c:16,r:5, action:'peek',  dir:3, dur:100},
+      {c:16,r:4, action:'walk'},
+      {c:24,r:4, action:'walk'},
+      {c:24,r:10,action:'peek',  dir:3, dur:100},
+      {c:24,r:4, action:'walk'},
+      {c:16,r:4, action:'walk'},
+      {c:16,r:11,action:'walk'},
+      {c:3, r:11,action:'walk'},
+      {c:3, r:14,action:'walk'},
+      {c:15,r:14,action:'walk'},
+    ];
+    this.wpIdx       = 0;
+    this.x           = this.waypoints[0].c*TILE+8;
+    this.y           = this.waypoints[0].r*TILE+8;
+    this.baseSpeed   = 1.2;
+    this.speed       = this.baseSpeed;
+    this.dir         = 0;
+    this.angle       = Math.PI/2;
+    this.fov         = Math.PI/2.8;
+    this.visionRange = TILE*4.5;
+    this.actionTimer = 0;
+    this.currentAction = 'Patrolling';
+    this.anim        = new Animator(10);
+
+    // State machine
+    this.aiState       = GState.PATROL;
+    this.lastSeenX     = 0;
+    this.lastSeenY     = 0;
+    this.investigateTimer = 0;
+    this.alertFlash    = 0;
+    this.alert         = false;
+
+    // Smooth angle interpolation
+    this.targetAngle   = this.angle;
+  }
+
+  get isInMainRoom() {
+    return Math.floor((this.x+16)/TILE)>=14 && Math.floor((this.y+16)/TILE)<=13;
+  }
+
+  update(map, playerX, playerY, playerSuspicious) {
+    // Area-based tuning
+    if (this.isInMainRoom) {
+      this.speed=0.65; this.fov=Math.PI/4.2; this.visionRange=TILE*2.5;
+    } else {
+      this.speed=this.baseSpeed; this.fov=Math.PI/2.8; this.visionRange=TILE*4.5;
+    }
+
+    // Smooth angle turn
+    let da = this.targetAngle - this.angle;
+    while(da>Math.PI) da-=TAU; while(da<-Math.PI) da+=TAU;
+    this.angle += da*0.12;
+
+    // Vision check (every frame)
+    const sees = inCone(playerX+16,playerY+16, this.x+16,this.y+16, this.angle, this.fov, this.visionRange, map);
+
+    // ── AI STATE MACHINE ──────────────────────────
+    if (this.aiState===GState.PATROL) {
+      if (sees) {
+        if (playerSuspicious) {
+          this.aiState=GState.ALERT;
+          this.alert=true;
+          this.alertFlash=30;
+        } else {
+          this.aiState=GState.INVESTIGATE;
+          this.lastSeenX=playerX; this.lastSeenY=playerY;
+          this.investigateTimer=180;
+        }
+      }
+    } else if (this.aiState===GState.INVESTIGATE) {
+      if (sees && playerSuspicious) {
+        this.aiState=GState.ALERT; this.alert=true; this.alertFlash=30;
+      } else {
+        this.investigateTimer--;
+        if (this.investigateTimer<=0) { this.aiState=GState.PATROL; }
+      }
+    }
+    if (this.alertFlash>0) this.alertFlash--;
+
+    // ── PATROL MOVEMENT ───────────────────────────
+    if (this.actionTimer>0) {
+      this.actionTimer--;
+      if (this.actionTimer<=0) {
+        this.wpIdx=(this.wpIdx+1)%this.waypoints.length;
+        if (this.currentAction === 'Filling') Audio_.stop('refill');
+        if (this.currentAction === 'Watering') Audio_.stop('water');
+      }
+      this.anim.tick(2);
+      return;
+    }
+
+    const wp = this.waypoints[this.wpIdx];
+    const tx=wp.c*TILE+8, ty=wp.r*TILE+8;
+    const dx=tx-this.x, dy=ty-this.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+
+    if (dist<3) {
+      if (wp.action && wp.action!=='walk') {
+        this.actionTimer=wp.dur||80;
+        this.currentAction = wp.action==='water'?'Watering':wp.action==='fill'?'Filling':wp.action==='peek'?'Peeking':'Idle';
+        if (wp.action==='water') Audio_.water();
+        if (wp.action==='fill') Audio_.refill();
+        const d=wp.dir??0;
+        this.dir=d;
+        this.targetAngle=[Math.PI/2,-Math.PI/2,Math.PI,0][d];
+      } else {
+        this.currentAction='Patrolling';
+        this.wpIdx=(this.wpIdx+1)%this.waypoints.length;
+      }
+    } else {
+      const nx=dx/dist, ny=dy/dist;
+      this.x+=nx*this.speed; this.y+=ny*this.speed;
+      if(Math.abs(nx)>Math.abs(ny)) this.dir=nx>0?3:2;
+      else this.dir=ny>0?0:1;
+      this.targetAngle=Math.atan2(dy,dx);
+      this.anim.tick(2);
+    }
+  }
+
+  draw(ctx, camX, camY, map) {
+    const sx=this.x-camX, sy=this.y-camY;
+
+    // Shadow
+    ctx.save(); ctx.globalAlpha=0.2; ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.ellipse(sx+16,sy+30,8,3,0,0,TAU); ctx.fill();
+    ctx.restore();
+
+    // Sprite
+    let spr;
+    if (this.alert || this.aiState===GState.ALERT) {
+      spr = Img.gAngry;
+    } else if (this.currentAction==='Watering') {
+      spr = Img.gWater;
+    } else if (this.currentAction==='Filling') {
+      spr = Img.gRefill;
+    } else if (this.currentAction==='Peeking') {
+      spr = (this.dir===2||this.dir===0) ? Img.gSuspL : Img.gSuspR;
+    } else {
+      const f=this.anim.frame;
+      if (this.dir===1) spr=f===0?Img.gBack:Img.gBack;
+      else if (this.dir===2) spr=Img.gLeft;
+      else if (this.dir===3) spr=Img.gRight;
+      else spr=Img.gFront;
+    }
+    drawSprite(ctx, spr, sx, sy);
+
+    // Alert emote flash
+    if (this.alertFlash>0) {
+      const pulse = this.alertFlash/30;
+      ctx.save(); ctx.globalAlpha=pulse;
+      drawSprite(ctx, Img.emoteAlert, sx+8, sy-30, 16, 16);
+      ctx.restore();
+    }
+
+    drawTag(ctx, 'Gardener', sx+16, sy-2);
+  }
+
+  detectsPlayer(px, py, map) {
+    return inCone(px+16,py+16, this.x+16,this.y+16, this.angle, this.fov, this.visionRange, map);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ALCHEMIST
+// ═══════════════════════════════════════════════════════════════════════
+class Alchemist {
+  constructor() {
+    this.x       = 22*TILE; this.y = 5*TILE;
+    this.sleeping= true;
+    this.awake   = false;
+    this.frame   = 0;
+    this.zTimer  = 0;
+    this.anim    = new Animator(30);
+  }
+
+  update(particles, noiseRatio) {
+    this.frame++;
+    this.anim.tick(2);
+    this.zTimer++;
+
+    // ZZZ particles using emote sprite
+    if (this.sleeping) {
+      if (this.zTimer%40===0)
+        particles.emit(this.x+22+Math.random()*8, this.y-8,
+          {vx:0.3, vy:-0.5, life:65, color:'#85c1e9', size:14, img_:Img.emoteZzz});
+    }
+
+    if (noiseRatio>0.85 && this.sleeping) { this.sleeping=false; this.awake=true; }
+  }
+
+  draw(ctx, camX, camY) {
+    const sx=this.x-camX, sy=this.y-camY;
+
+    // Warm glow
+    const g=ctx.createRadialGradient(sx+16,sy+16,2,sx+16,sy+16,TILE*3);
+    g.addColorStop(0,'rgba(255,180,50,0.12)'); g.addColorStop(1,'rgba(255,180,50,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx+16,sy+16,TILE*3,0,TAU); ctx.fill();
+
+    // Shadow
+    ctx.save(); ctx.globalAlpha=0.2; ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.ellipse(sx+16,sy+30,9,3,0,0,TAU); ctx.fill();
+    ctx.restore();
+
+    // Sprite — breathe animation
+    let spr;
+    if (this.awake) spr=Img.aVAngry;
+    else spr = this.anim.frame===0 ? Img.aBreath : Img.aIdle;
+    drawSprite(ctx, spr, sx, sy);
+
+    // Alert emote
+    if (this.awake) drawSprite(ctx, Img.emoteAlert, sx+10, sy-28, 18, 18);
+
+    drawTag(ctx,'Alchemist',sx+16,sy-2);
+
+    // Noise bar above head
+    const bw=34, bh=4, bx=sx+16-bw/2, by=sy-40;
+    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(bx-1,by-1,bw+2,bh+2);
+    const r=Noise.ratio;
+    ctx.fillStyle=r>0.85?'#e74c3c':r>0.7?'#e67e22':'#2ecc71';
+    ctx.fillRect(bx,by,bw*r,bh);
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.fillRect(bx+bw*0.85,by-2,1,bh+4);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  INPUT MANAGER
+// ═══════════════════════════════════════════════════════════════════════
+const Input = {
+  up:false,down:false,left:false,right:false,shift:false,
+  space:false,e:false,f:false,
+  spaceDown:false,eDown:false,fDown:false,
+  _ps:false,_pe:false,_pf:false,
+  jx:0,jy:0,
+  update() {
+    this.spaceDown=this.space&&!this._ps;
+    this.eDown=this.e&&!this._pe;
+    this.fDown=this.f&&!this._pf;
+    this._ps=this.space;this._pe=this.e;this._pf=this.f;
+  },
+  forceSpace(){this.spaceDown=true;},
+  forceE(){this.eDown=true;},
+  forceF(){this.fDown=true;},
+};
+
+function setupInput() {
+  const km={arrowup:'up',w:'up',arrowdown:'down',s:'down',
+            arrowleft:'left',a:'left',arrowright:'right',d:'right',
+            ' ':'space',e:'e',f:'f',shift:'shift'};
+  window.addEventListener('keydown',ev=>{
+    const k=ev.key.toLowerCase();
+    Audio_.init();
+    if(k in km){Input[km[k]]=true; ev.preventDefault();}
+  });
+  window.addEventListener('keyup',ev=>{
+    const k=ev.key.toLowerCase();
+    if(k in km) Input[km[k]]=false;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════════════════════
+const GS = {MENU:'menu',DIALOGUE:'dialogue',PLAYING:'playing',GAMEOVER:'gameover',WIN:'win'};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN GAME CLASS
+// ═══════════════════════════════════════════════════════════════════════
+class Game {
+  constructor() {
+    this.canvas   = document.getElementById('gameCanvas');
+    this.ctx      = this.canvas.getContext('2d');
+    this.lightCanvas = document.createElement('canvas');
+    this.lightCtx = this.lightCanvas.getContext('2d');
+    this.W=0; this.H=0;
+    this.state    = GS.MENU;
+    this.frame    = 0;
+
+    // Game objects
+    this.map      = buildMap();
+    window._map   = this.map;
+    this.player   = new Player();
+    this.gardener = new Gardener();
+    this.alchemist= new Alchemist();
+    this.particles= new Particles();
+
+    // Camera (smooth)
+    this.camX=0; this.camY=0;
+
+    // Doors
+    this.doors = this._initDoors();
+
+    // Bucket
+    this.bucketOnGround = true;
+    this.bucketX = 0; this.bucketY = 0;
+    const bs = this._findTile(T.BUCKET_SPOT);
+    if (bs) { this.bucketX=bs.c*TILE; this.bucketY=bs.r*TILE; }
+
+    // Progress
+    this.tubeCount    = 0;
+    this.currentTubeFill = 0;
+    this.pourProgress = 0;
+    this.pumpActive   = false;
+    this.pumpCooldown = 0;
+
+    // Scoring
+    this.startTime       = 0;
+    this.neverDetected   = true;
+    this.alchemistNearly = false;
+    this.noiseWarned     = false;
+    this.boardOpen       = false;
+
+    // Grass particle timer
+    this.grassTimer = 0;
+
+    // HUD elements cached
+    this.hudNoise  = document.getElementById('noiseFill');
+    this.hudBucket = document.getElementById('bucketFill');
+    this.hudTubeFill = document.getElementById('tubeFillBar');
+    this.hudTube   = document.getElementById('tubeCountEl');
+    this.stealthImg= document.getElementById('stealthImg');
+    this.stealthLbl= document.getElementById('stealthLabel');
+    this.stealthPnl= document.getElementById('stealthPanel');
+    this.pourBar   = document.getElementById('pourBar');
+    this.pourFill  = document.getElementById('pourFill');
+
+    Msg.init();
+    setupInput();
+    this._setupCanvas();
+    this._setupMobile();
+    this._setupButtons();
+    this._loop();
+  }
+
+  // ── INIT ────────────────────────────────────────
+  _initDoors() {
+    const doors=[];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+      if(this.map[r][c]===T.DOOR) doors.push({r,c,state:'closed',progress:0});
+    return doors;
+  }
+
+  _findTile(type) {
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+      if(this.map[r][c]===type) return {r,c};
+    return null;
+  }
+
+  _setupCanvas() {
+    const resize=()=>{ this.W=window.innerWidth; this.H=window.innerHeight;
+      this.canvas.width=this.W; this.canvas.height=this.H;
+      this.lightCanvas.width=this.W; this.lightCanvas.height=this.H; };
+    window.addEventListener('resize',resize); resize();
+  }
+
+  _setupMobile() {
+    const mobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||
+                 ('ontouchstart' in window && window.innerWidth<900);
+    if(!mobile) return;
+    document.querySelector('.controls-info').style.display = 'none';
+    document.getElementById('mobileControls').style.display='block';
+    const zone=document.getElementById('joystickZone');
+    const knob=document.getElementById('joystickKnob');
+    let active=false, ox=0, oy=0;
+    const maxR=45;
+
+    const updateJoy = (clientX, clientY) => {
+      if(!active) return;
+      let dx=clientX-ox, dy=clientY-oy;
+      const d=Math.sqrt(dx*dx+dy*dy); if(d>maxR){dx=dx/d*maxR;dy=dy/d*maxR;}
+      knob.style.transform=`translate(${dx}px,${dy}px)`;
+      Input.jx=dx/maxR; Input.jy=dy/maxR;
+    };
+    const startJoy = (clientX, clientY) => {
+      Audio_.init(); active=true;
+      const r=zone.getBoundingClientRect();
+      ox=r.left+r.width/2; oy=r.top+r.height/2; 
+      updateJoy(clientX, clientY);
+    };
+    const endJoy = () => { active=false; knob.style.transform=''; Input.jx=Input.jy=0; };
+
+    zone.addEventListener('touchstart',ev=>{ const t=ev.targetTouches[0]; if(t) startJoy(t.clientX, t.clientY); ev.preventDefault(); },{passive:false});
+    zone.addEventListener('touchmove',ev=>{ const t=ev.targetTouches[0]; if(t) updateJoy(t.clientX, t.clientY); ev.preventDefault();},{passive:false});
+    zone.addEventListener('touchend',ev=>{ endJoy(); ev.preventDefault(); });
+    zone.addEventListener('touchcancel',ev=>{ endJoy(); ev.preventDefault(); });
+
+    // Add mouse support for testing on desktop
+    zone.addEventListener('mousedown',ev=>{ startJoy(ev.clientX, ev.clientY); ev.preventDefault(); });
+    window.addEventListener('mousemove',ev=>{ if(active) updateJoy(ev.clientX, ev.clientY); });
+    window.addEventListener('mouseup',ev=>{ if(active) endJoy(); });
+
+    const addBtn = (id, key) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const press = (ev) => { Input[key] = true; ev.preventDefault(); };
+      const release = (ev) => { Input[key] = false; ev.preventDefault(); };
+      el.addEventListener('touchstart', press, {passive:false});
+      el.addEventListener('touchend', release, {passive:false});
+      el.addEventListener('touchcancel', release, {passive:false});
+      el.addEventListener('mousedown', press);
+      el.addEventListener('mouseup', release);
+      el.addEventListener('mouseleave', release);
+    };
+    addBtn('btnPump', 'space'); addBtn('btnInteract', 'f');
+    addBtn('btnPickup', 'e');   addBtn('btnSprint', 'shift');
+  }
+
+  _setupButtons() {
+    document.getElementById('closeBoardBtn').addEventListener('click', () => {
+      this.boardOpen = false;
+      document.getElementById('boardOverlay').style.display = 'none';
+    });
+    document.getElementById('btnStart').addEventListener('click',()=>this.startGame(false));
+    document.getElementById('btnRetry').addEventListener('click',()=>this.startGame(true));
+    document.getElementById('btnPlayAgain').addEventListener('click',()=>this.startGame(true));
+    document.getElementById('introOverlay').addEventListener('click', () => {
+      if (this.state === GS.DIALOGUE) {
+        this.dialogueIndex++;
+        this.showDialogueStep();
+      }
+    });
+
+    const initAudio = () => {
+      Audio_.init();
+      if (this.state === GS.MENU) Audio_.theme();
+      ['click', 'touchstart', 'keydown'].forEach(evt => window.removeEventListener(evt, initAudio));
+    };
+    ['click', 'touchstart', 'keydown'].forEach(evt => window.addEventListener(evt, initAudio));
+  }
+
+  startGame(skipIntro = false) {
+    Audio_.init();
+    Audio_.theme();
+    Audio_.stop('refill');
+    Audio_.stop('water');
+    this.map       = buildMap();
+    window._map    = this.map;
+    this.player    = new Player();
+    this.gardener  = new Gardener();
+    this.alchemist = new Alchemist();
+    this.particles = new Particles();
+    this.doors     = this._initDoors();
+    this.bucketOnGround = true;
+    this.tubeCount=0; this.pourProgress=0;
+    this.currentTubeFill=0; window._tubeFill=0;
+    this.pumpActive=false; this.pumpCooldown=0;
+    this.neverDetected=true; this.alchemistNearly=false; this.noiseWarned=false;
+    this.metGardener = false;
+    this.metGardenerBucket = false;
+    this.metAlchemist = false;
+    const bs=this._findTile(T.BUCKET_SPOT);
+    if(bs){this.bucketX=bs.c*TILE;this.bucketY=bs.r*TILE;}
+    Noise.reset();
+    this.startTime=performance.now();
+    this.state=GS.PLAYING;
+    document.getElementById('startScreen').classList.remove('active');
+    document.getElementById('gameoverScreen').classList.remove('active');
+    document.getElementById('winScreen').classList.remove('active');
+
+    if (skipIntro) {
+      this.startTime = performance.now();
+      this.state = GS.PLAYING;
+    } else {
+      this.startIntro();
+    }
+  }
+
+  startDialogue(dialogues, onComplete) {
+    this.state = GS.DIALOGUE;
+    this.dialogues = dialogues;
+    this.dialogueIndex = 0;
+    this.onDialogueComplete = onComplete;
+    document.getElementById('introOverlay').style.display = 'flex';
+    this.showDialogueStep();
+  }
+
+  showDialogueStep() {
+    if (this.dialogueIndex >= this.dialogues.length) {
+      document.getElementById('introOverlay').style.display = 'none';
+      if (this.onDialogueComplete) this.onDialogueComplete();
+      else this.state = GS.PLAYING;
+      return;
+    }
+    const d = this.dialogues[this.dialogueIndex];
+    document.getElementById('introSpeaker').textContent = d.speaker;
+    document.getElementById('introText').textContent = d.text;
+    const portrait = document.getElementById('introPortrait');
+    if (d.img) {
+      portrait.style.display = 'block';
+      portrait.src = d.img.src;
+    } else {
+      portrait.style.display = 'none';
+    }
+  }
+
+  startIntro() {
+    const introDialogues = [
+      { speaker: 'Gardener', text: "My job was to simply water the plants.", img: Img.gIdle },
+      { speaker: 'Gardener', text: "This rangling noise, the boy Haary causing is just... annoying.", img: Img.gIdle },
+      { speaker: 'Harry', text: "Is that so?", img: Img.hIdle },
+      { speaker: 'Gardener', text: "If I found you pumping your pump again!! You are grounded!", img: Img.gIdle },
+      { speaker: 'Harry', text: "Lets see, I am gonna pump until my last breath.", img: Img.hIdle },
+      { speaker: 'Harry', text: "Fill the tube in the main room without waking up the Alchemist", img: Img.hIdle },
+      { speaker: 'System', text: "General rules: Do not wake alchemist by making too much noise. Do not get caught pumping or moving the bucket with white fuel. Fill the tube 5 times silently to escape the matrix.", img: null },
+      { speaker: 'Harry', text: "If we win, we shall open a cafe :)", img: Img.hIdle }
+    ];
+    this.startDialogue(introDialogues, () => {
+      this.startTime = performance.now();
+      this.state = GS.PLAYING;
+    });
+  }
+
+  // ── UPDATE ──────────────────────────────────────
+  update() {
+    if (this.state === GS.DIALOGUE) {
+      this.frame++;
+      Input.update();
+      if (Input.spaceDown) {
+        this.dialogueIndex++;
+        this.showDialogueStep();
+      }
+      return;
+    }
+    if (this.state!==GS.PLAYING) return;
+    this.frame++;
+    Input.update();
+
+    if (this.boardOpen) {
+      if (Input.spaceDown) {
+        this.boardOpen = false;
+        document.getElementById('boardOverlay').style.display = 'none';
+      }
+      return;
+    }
+
+    this.player.update(Input, this.map);
+    Noise.decay();
+
+    if (Noise.ratio>0.7) this.alchemistNearly=true;
+    if (Noise.ratio>0.75 && !this.noiseWarned) {
+      Msg.show('⚠ Too loud! The Alchemist is stirring…', 2500);
+      this.noiseWarned=true;
+    } else if (Noise.ratio<0.45) { this.noiseWarned=false; }
+
+    // ── DOORS ──
+    this.doors.forEach(d=>{
+      const px=d.c*TILE+16, py=d.r*TILE+16;
+      const nearPlayer  = Math.hypot(this.player.x+16-px,  this.player.y+16-py)  < TILE*1.5;
+      const nearGardener= Math.hypot(this.gardener.x+16-px, this.gardener.y+16-py) < TILE*1.5;
+      const near = nearPlayer||nearGardener;
+      if (near && d.state==='closed') { 
+        d.state='open'; 
+      }
+      if (!near && d.state==='open')  { 
+        d.state='closed'; 
+      }
+      if (d.state==='open' && d.progress<1) d.progress=Math.min(1,d.progress+0.18);
+      else if (d.state==='closed' && d.progress>0) d.progress=Math.max(0,d.progress-0.18);
+    });
+
+    // ── PUMP COOLDOWN ──
+    if (this.pumpCooldown>0) {
+      this.pumpCooldown--;
+      this.pumpActive=this.pumpCooldown>0;
+      if (this.pumpCooldown>0) this.player.state='pumping';
+    }
+
+    // ── GARDENER ──
+    const suspicious = (this.player.hasBucket && this.player.bucketFill > 0) || this.pumpCooldown>0 || this.pourProgress>0;
+    this.gardener.update(this.map, this.player.x, this.player.y, suspicious);
+
+    // ── ALCHEMIST ──
+    this.alchemist.update(this.particles, Noise.ratio, this.player.x, this.player.y);
+
+    // ── PARTICLES ──
+    this.particles.update();
+
+    // ── AMBIENT GARDEN PARTICLES ──
+    this.grassTimer++;
+    if (this.grassTimer%50===0) {
+      const gc=5+Math.floor(Math.random()*20), gr=15+Math.floor(Math.random()*8);
+      this.particles.emit(gc*TILE+Math.random()*TILE, gr*TILE+Math.random()*TILE,
+        {vx:(Math.random()-.5)*.4, vy:-.2, life:90, color:'#2ecc71', size:2, spread:0.5});
+    }
+
+    // ── INTERACTIONS ──
+    this._handleInteractions();
+
+    // ── DETECTION CHECKS ──
+    this._checkDetection();
+
+    // ── CAMERA ──
+    const ZOOM = 2;
+    const effW = this.W / ZOOM, effH = this.H / ZOOM;
+    const tcx=this.player.x+16-effW/2, tcy=this.player.y+16-effH/2;
+    this.camX+=(tcx-this.camX)*0.1;
+    this.camY+=(tcy-this.camY)*0.1;
+    const mw=COLS*TILE, mh=ROWS*TILE;
+    this.camX=effW>=mw ? (mw-effW)/2 : Math.max(0,Math.min(mw-effW,this.camX));
+    this.camY=effH>=mh ? (mh-effH)/2 : Math.max(0,Math.min(mh-effH,this.camY));
+
+    // ── HUD ──
+    this._updateHUD();
+  }
+
+  _handleInteractions() {
+    const p=this.player;
+
+    // PUMP & BOARD (SPACE)
+    if (Input.spaceDown && this._nearTile(T.BOARD)) {
+      this.boardOpen = true;
+      document.getElementById('boardOverlay').style.display = 'flex';
+      Audio_.pickup();
+    } else if (Input.spaceDown && this._nearTile(T.PUMP) && !p.hasBucket && this.bucketOnGround) {
+      const dist=Math.hypot(p.x-this.bucketX, p.y-this.bucketY);
+      if (dist<TILE*1.8) {
+        this.pumpCooldown=22; this.pumpActive=true;
+        p.bucketFill=Math.min(100, p.bucketFill+9);
+        Noise.add(6*p.noiseMult(this.map));
+        Audio_.pump();
+        this.particles.emit(p.x+22, p.y+5, {vx:0,vy:-1,life:28,color:'#d5f5f6',size:4,spread:1.5});
+        if (p.bucketFill>=100) Msg.show('Bucket full! Press E to pick up.', 2000);
+      } else {
+        Msg.show('Bring the bucket near the pump first.', 1500);
+      }
+    }
+
+    // PICK UP / DROP (E)
+    if (Input.eDown) {
+      const dist=Math.hypot(p.x-this.bucketX, p.y-this.bucketY);
+      if (!p.hasBucket && this.bucketOnGround && dist<TILE*1.8) {
+        p.hasBucket=true; this.bucketOnGround=false;
+        Audio_.pickup(); Noise.add(5*p.noiseMult(this.map));
+        Msg.show('Bucket picked up! Carry it to the tube.', 2000);
+      } else if (p.hasBucket) {
+        p.hasBucket=false; this.bucketOnGround=true;
+        this.bucketX=p.x; this.bucketY=p.y;
+        Noise.add(8*p.noiseMult(this.map));
+        Msg.show('Bucket dropped!', 1000);
+      }
+    }
+
+    // POUR (F)
+    const isPouring = (Input.fDown || (Input.f && this.pourProgress > 0)) && p.hasBucket && this._nearTile(T.TUBE) && p.bucketFill > 0;
+    if (isPouring) {
+      this.pourProgress+=2;
+      p.bucketFill=Math.max(0, p.bucketFill-2);
+      this.currentTubeFill = Math.min(100, (this.currentTubeFill || 0) + 2);
+      window._tubeFill = this.currentTubeFill / 100;
+      p.state='pouring';
+      Noise.add(0.8*p.noiseMult(this.map));
+      Audio_.startPour();
+      this.particles.emit(p.x+18+Math.random()*6, p.y+22,
+        {vx:.2,vy:.4,life:18,color:'#d5f5f6',size:3,spread:1});
+      // Pour bar UI
+      this.pourBar.style.opacity='1';
+      this.pourFill.style.width=this.currentTubeFill+'%';
+
+      if (this.currentTubeFill >= 100) {
+        this.tubeCount++;
+        this.currentTubeFill = 0;
+        window._tubeFill = 0;
+        this.pourProgress=0;
+        this.pourBar.style.opacity='0'; this.pourFill.style.width='0%';
+        Audio_.stopPour();
+        Audio_.pickup();
+        Msg.show(`Tube filled! ${this.tubeCount}/5`, 1500);
+        for(let i=0;i<16;i++)
+          this.particles.emit(p.x+16,p.y+16,
+            {vx:(Math.random()-.5)*4, vy:-Math.random()*4, life:55,
+             color:`hsl(${Math.random()*360},80%,65%)`, size:5, spread:0});
+        if (this.tubeCount>=5) { this.state=GS.WIN; Audio_.win(); this._showWin(); }
+      } else if (p.bucketFill <= 0) {
+        this.pourProgress=0;
+        this.pourBar.style.opacity='0';
+        Audio_.stopPour();
+        Msg.show('Bucket empty! Refill at the pump.', 1500);
+      }
+    } else {
+      Audio_.stopPour();
+    }
+    if (!Input.f) {
+      this.pourProgress=0;
+      if (this.pourBar.style.opacity==='1') {
+        this.pourBar.style.opacity='0';
+      }
+    }
+  }
+
+  _checkDetection() {
+    const p=this.player;
+    const suspicious=(p.hasBucket && p.bucketFill > 0)||this.pumpCooldown>0||this.pourProgress>0;
+    const gardenerSees=this.gardener.detectsPlayer(p.x,p.y,this.map);
+
+    if (gardenerSees) {
+      if (suspicious) {
+        this.neverDetected=false;
+        Audio_.busted();
+        this.startDialogue([
+          { speaker: 'Gardener', text: "Pump adikikiriyaada body soda", img: Img.gAngry },
+          { speaker: 'Harry', text: "Anna uturunga naa", img: Img.hBusted }
+        ], () => {
+          this.state=GS.GAMEOVER;
+          Audio_.gameover();
+          this._showGameOver('The Gardener caught you with the fuel!');
+        });
+        return;
+      }
+    }
+
+    // Gardener sees dropped filled bucket
+    if (this.bucketOnGround && p.bucketFill>0) {
+      if (this.gardener.detectsPlayer(this.bucketX,this.bucketY,this.map)) {
+        this.neverDetected=false;
+        Audio_.busted();
+        this.startDialogue([
+          { speaker: 'Gardener', text: "Pump adikikiriyaada body soda", img: Img.gAngry },
+          { speaker: 'Harry', text: "Anna uturunga naa", img: Img.hBusted }
+        ], () => {
+          this.state=GS.GAMEOVER;
+          Audio_.gameover();
+          this._showGameOver('The Gardener found the filled bucket!');
+        });
+        return;
+      }
+    }
+
+    if (this.alchemist.awake) {
+      const distToAlchemist = Math.hypot(p.x - this.alchemist.x, p.y - this.alchemist.y);
+      Audio_.yell(distToAlchemist);
+      this.startDialogue([
+        { speaker: 'Alchemist', text: "Wommala deiiiiiii", img: Img.aVAngry },
+        { speaker: 'Harry', text: "Anna vutrunga novv", img: Img.hBusted }
+      ], () => {
+        this.state=GS.GAMEOVER;
+        Audio_.gameover();
+        this._showGameOver('The Alchemist woke up!');
+      });
+      return;
+    }
+
+    // Proximity Dialogues
+    const distToGardener = Math.hypot(p.x - this.gardener.x, p.y - this.gardener.y);
+    if (distToGardener < TILE * 3.5) {
+      if (p.hasBucket && p.bucketFill === 0 && !this.metGardenerBucket) {
+        this.metGardenerBucket = true;
+        Audio_.growl(distToGardener);
+        this.startDialogue([
+          { speaker: 'Gardener', text: "What's with the bucket?", img: Img.gIdle },
+          { speaker: 'Harry', text: "Kakkoos porenda, saala", img: Img.hIdle }
+        ]);
+        return;
+      } else if (!p.hasBucket && !this.metGardener) {
+        this.metGardener = true;
+        Audio_.growl(distToGardener);
+        this.startDialogue([
+          { speaker: 'Gardener', text: "Do not dare to pump again, Harry!!", img: Img.gIdle },
+          { speaker: 'Harry', text: "I wont, chill.", img: Img.hIdle }
+        ]);
+        return;
+      }
+    }
+
+    const distToAlchemist = Math.hypot(p.x - this.alchemist.x, p.y - this.alchemist.y);
+    if (distToAlchemist < TILE * 3.5 && !this.alchemist.awake && !this.metAlchemist) {
+      this.metAlchemist = true;
+      this.startDialogue([
+        { speaker: 'Alchemist', text: "zzzzzz", img: Img.aIdle },
+        { speaker: 'Harry', text: "Lets be quiet", img: Img.hIdle }
+      ]);
+      return;
+    }
+  }
+
+  _nearTile(type, range=TILE*1.8) {
+    const px=this.player.x+16, py=this.player.y+16;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+      if(this.map[r][c]===type) {
+        if(Math.hypot(px-c*TILE-16, py-r*TILE-16)<range) return true;
+      }
+    }
+    return false;
+  }
+
+  _updateHUD() {
+    this.hudNoise.style.width=(Noise.ratio*100)+'%';
+    const bf=this.player.hasBucket ? this.player.bucketFill : this.bucketOnGround?this.player.bucketFill:0;
+    this.hudBucket.style.width=bf+'%';
+    this.hudTubeFill.style.width=(this.currentTubeFill||0)+'%';
+    this.hudTube.textContent=`${this.tubeCount} / 5`;
+
+    const r=Noise.ratio;
+    if (r>0.7) {
+      this.stealthImg.style.opacity='1';
+      this.stealthImg.style.filter='drop-shadow(0 0 6px rgba(231,76,60,0.8))';
+      this.stealthLbl.textContent='DANGER'; this.stealthLbl.style.color='#e74c3c';
+      this.stealthPnl.className='danger';
+    } else if (r>0.4) {
+      this.stealthImg.style.opacity='0.8';
+      this.stealthImg.style.filter='drop-shadow(0 0 4px rgba(230,126,34,0.7)) hue-rotate(30deg)';
+      this.stealthLbl.textContent='Uneasy'; this.stealthLbl.style.color='#e67e22';
+      this.stealthPnl.className='uneasy';
+    } else {
+      this.stealthImg.style.opacity='0.35';
+      this.stealthImg.style.filter='hue-rotate(120deg)';
+      this.stealthLbl.textContent='Hidden'; this.stealthLbl.style.color='#2ecc71';
+      this.stealthPnl.className='';
+    }
+
+    // Dynamically position pour bar over the tube
+    if (this.pourBar.style.opacity === '1') {
+      const ZOOM = 2;
+      const sx = (27 * TILE - this.camX) * ZOOM; // 27 is the horizontal center of the two tube tiles
+      const sy = (10 * TILE - this.camY) * ZOOM - 30;
+      this.pourBar.style.left = `${sx}px`;
+      this.pourBar.style.top = `${sy}px`;
+    }
+  }
+
+  // ── DRAW ────────────────────────────────────────
+  draw() {
+    const ZOOM = 2;
+    const ctx=this.ctx;
+    const {W,H,camX,camY,frame}=this;
+    const effW = W / ZOOM, effH = H / ZOOM;
+    ctx.clearRect(0,0,W,H);
+
+    ctx.save();
+    ctx.scale(ZOOM, ZOOM);
+
+    // Infinite background grass
+    const bgC0=Math.floor(camX/TILE)-1, bgR0=Math.floor(camY/TILE)-1;
+    const bgC1=bgC0+Math.ceil(effW/TILE)+2, bgR1=bgR0+Math.ceil(effH/TILE)+2;
+    for(let r=bgR0;r<=bgR1;r++) for(let c=bgC0;c<=bgC1;c++) {
+      if(r>=0&&r<ROWS&&c>=0&&c<COLS) continue;
+      drawSprite(ctx, Math.abs((c * 7 + r * 13) % 8) === 0 ? Img.grassDk1 : Img.grassDk2,
+        c*TILE-camX, r*TILE-camY);
+    }
+
+    // Map tiles
+    const tileState = {
+      pumpActive: this.pumpActive,
+      tubeFill:   this.tubeCount/5,
+      tubeCount:  this.tubeCount,
+      doorProgress: (r,c)=>{ const d=this.doors.find(d=>d.r===r&&d.c===c); return d?d.progress:0; },
+    };
+    const c0=Math.max(0,Math.floor(camX/TILE)-2), c1=Math.min(COLS-1,Math.floor(camX/TILE)+Math.ceil(effW/TILE)+2);
+    const r0=Math.max(0,Math.floor(camY/TILE)-2), r1=Math.min(ROWS-1,Math.floor(camY/TILE)+Math.ceil(effH/TILE)+2);
+    const deferred = [];
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) {
+      const t=this.map[r][c];
+      if(t===T.EMPTY) continue;
+      drawTile(ctx, c, r, t, c*TILE-camX, r*TILE-camY, frame, tileState, deferred);
+    }
+    deferred.forEach(d => d());
+
+    // Bright yellow vision cone OVER tiles but UNDER characters
+    castCone(ctx, this.gardener.x - camX + 16, this.gardener.y - camY + 16, this.gardener.angle, this.gardener.fov, this.gardener.visionRange, this.map, false);
+
+    // Bucket on ground
+    if (this.bucketOnGround) {
+      const bx=this.bucketX-camX, by=this.bucketY-camY;
+      drawSprite(ctx, this.player.bucketFill>=100?Img.bucketF:Img.bucketE, bx + 6, by + 6, 20, 20);
+      ctx.save();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.floor(this.player.bucketFill) + '%', bx + TILE/2, by - 2);
+      ctx.restore();
+    }
+
+    // NPCs
+    this.alchemist.draw(ctx, camX, camY);
+    this.gardener.draw(ctx, camX, camY, this.map);
+
+    // Player
+    this.player.draw(ctx, camX, camY, frame);
+
+    // Particles
+    this.particles.draw(ctx, camX, camY);
+
+    // Night vignette
+    const vg=ctx.createRadialGradient(effW/2,effH/2,effH*.28,effW/2,effH/2,effH*.88);
+    vg.addColorStop(0,'rgba(0,0,22,0)'); vg.addColorStop(1,'rgba(0,0,22,0.58)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,effW,effH);
+
+    // ── MAIN ROOM LIGHTING OVERLAY ──
+    const lCtx = this.lightCtx;
+    lCtx.clearRect(0, 0, W, H);
+
+    lCtx.save();
+    lCtx.scale(ZOOM, ZOOM);
+    
+    // Fill main room with darkness (excluding walls)
+    const mrX = 15 * TILE - camX;
+    const mrY = 1 * TILE - camY;
+    const mrW = 14 * TILE;
+    const mrH = 12 * TILE;
+    lCtx.fillStyle = 'rgba(5, 5, 12, 0.96)';
+    lCtx.fillRect(mrX, mrY, mrW, mrH);
+    
+    // Cut out lights using destination-out
+    lCtx.globalCompositeOperation = 'destination-out';
+    
+    // 1. Lanterns
+    for(let r=0; r<=13; r++) {
+      for(let c=14; c<=29; c++) {
+        if (this.map[r][c] === T.LANTERN) {
+          const lx = c * TILE - camX + 16;
+          const ly = r * TILE - camY + 14;
+          const g = lCtx.createRadialGradient(lx, ly, 2, lx, ly, TILE * 3.5);
+          g.addColorStop(0, 'rgba(255, 255, 255, 1)');
+          g.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+          g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          lCtx.fillStyle = g;
+          lCtx.beginPath(); lCtx.arc(lx, ly, TILE * 3.5, 0, TAU); lCtx.fill();
+        }
+      }
+    } 
+    
+    // 2. Alchemist glow
+    {
+      const ax = this.alchemist.x - camX + 16;
+      const ay = this.alchemist.y - camY + 16;
+      const ag = lCtx.createRadialGradient(ax, ay, 2, ax, ay, TILE * 4);
+      ag.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      ag.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+      ag.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      lCtx.fillStyle = ag;
+      lCtx.beginPath(); lCtx.arc(ax, ay, TILE * 4, 0, TAU); lCtx.fill();
+    }
+
+    // 3. Gardener flashlight
+    castCone(lCtx, this.gardener.x - camX + 16, this.gardener.y - camY + 16, this.gardener.angle, this.gardener.fov, this.gardener.visionRange, this.map, true);
+
+    // 4. Faint glow around Harry to avoid being completely lost
+    {
+      const hx = this.player.x - camX + 16;
+      const hy = this.player.y - camY + 16;
+      const hg = lCtx.createRadialGradient(hx, hy, 2, hx, hy, TILE * 2);
+      hg.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+      hg.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      lCtx.fillStyle = hg;
+      lCtx.beginPath(); lCtx.arc(hx, hy, TILE * 2, 0, TAU); lCtx.fill();
+    }
+
+    lCtx.restore();
+
+    ctx.restore();
+    ctx.drawImage(this.lightCanvas, 0, 0);
+
+    // Room labels
+    ctx.save();
+    ctx.scale(ZOOM, ZOOM);
+    [['HARRY\'S ROOM',5,4],['MAIN ROOM',22,2],['HALLWAY',6,11],['GARDEN',14,18]].forEach(([t,c,r])=>{
+      const sx=c*TILE-camX, sy=r*TILE-camY;
+      if(sx<-200||sx>effW+200||sy<-50||sy>effH+50) return;
+      ctx.save(); ctx.globalAlpha=0.18; ctx.fillStyle='#f1c40f';
+      ctx.font='10px Courier New'; ctx.letterSpacing='2px'; ctx.fillText(t,sx,sy);
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  // ── SCREENS ─────────────────────────────────────
+  _showGameOver(reason) {
+    document.getElementById('gameoverReason').textContent=reason;
+    document.getElementById('gameoverScreen').classList.add('active');
+  }
+
+  _showWin() {
+    const elapsed=(performance.now()-this.startTime)/1000;
+    const crowns=[];
+    if(this.neverDetected)    crowns.push(0);
+    if(!this.alchemistNearly) crowns.push(1);
+    if(elapsed<180)           crowns.push(2);
+    const div=document.getElementById('crownsDisplay');
+    div.innerHTML=crowns.map((_, i)=>
+      `<img class="crown-img" src="assets/ui/crown_icon.png" style="animation-delay:${i*0.15}s">`
+    ).join('');
+    document.getElementById('winStats').innerHTML=
+      `${crowns.length}/3 Crowns &nbsp;·&nbsp; Time: ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s<br>`+
+      `${this.neverDetected?'✓ Never detected':'✗ Detected'} &nbsp; `+
+      `${!this.alchemistNearly?'✓ Alchemist slept':'✗ Nearly woken'}`;
+    document.getElementById('winScreen').classList.add('active');
+  }
+
+  // ── LOOP ────────────────────────────────────────
+  _loop() {
+    this.update();
+    this.draw();
+    requestAnimationFrame(()=>this._loop());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  window._game = new Game();
+  Msg.show('Press SPACE near the pump · E to pick up · F to pour', 3500);
+});
+
+// Context-sensitive hints
+setInterval(() => {
+  const g=window._game;
+  if (!g||g.state!==GS.PLAYING||g.boardOpen) return;
+  const p=g.player;
+  const distB=Math.hypot(p.x-g.bucketX, p.y-g.bucketY);
+  if (Math.random()<0.08) {
+    if (g._nearTile(T.PUMP)&&!p.hasBucket&&g.bucketOnGround&&p.bucketFill<100&&distB<TILE*1.8)
+      Msg.show('Near pump — SPACE to pump!', 1500);
+    else if (g._nearTile(T.BOARD))
+      Msg.show('Near board — SPACE to read', 1500);
+    else if (distB<TILE*1.8&&!p.hasBucket&&p.bucketFill>=100)
+      Msg.show('Bucket full — E to pick up', 1500);
+    else if (p.hasBucket&&g._nearTile(T.TUBE))
+      Msg.show('Hold F to pour into the tube', 1500);
+  }
+}, 4000);
+</script>
+</body>
+</html>
