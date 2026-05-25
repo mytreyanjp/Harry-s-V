@@ -326,6 +326,19 @@ body {
   width: 0%;
   transition: width 0.08s;
 }
+
+/* ── MINIMAP ─────────────────────────────────── */
+#minimapCanvas {
+  position: absolute;
+  top: 80px; right: 12px;
+  width: 120px; height: 96px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 10;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
 </style>
 </head>
 <body>
@@ -359,6 +372,7 @@ body {
 
   <div id="msgBox"></div>
   <div id="pourBar"><div id="pourFill"></div></div>
+  <canvas id="minimapCanvas" width="120" height="96"></canvas>
 
   <!-- Board Overlay -->
   <div id="boardOverlay" style="display:none; position:absolute; inset:0; z-index:40; background:rgba(0,0,0,0.8); align-items:center; justify-content:center;">
@@ -1429,6 +1443,10 @@ class Game {
     this.pourBar   = document.getElementById('pourBar');
     this.pourFill  = document.getElementById('pourFill');
 
+    this.minimapCanvas = document.getElementById('minimapCanvas');
+    this.mmCtx = this.minimapCanvas.getContext('2d');
+    this._initMinimapBg();
+
     Msg.init();
     setupInput();
     this._setupCanvas();
@@ -1540,6 +1558,7 @@ class Game {
     Audio_.stop('water');
     this.map       = buildMap();
     window._map    = this.map;
+    this._initMinimapBg();
     this.player    = new Player();
     this.gardener  = new Gardener();
     this.alchemist = new Alchemist();
@@ -1922,6 +1941,50 @@ class Game {
     }
   }
 
+  // ── MINIMAP ─────────────────────────────────────
+  _initMinimapBg() {
+    this.mmBg = document.createElement('canvas');
+    this.mmBg.width = COLS * 4;
+    this.mmBg.height = ROWS * 4;
+    const ctx = this.mmBg.getContext('2d');
+    
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const t = this.map[r][c];
+        let color = '#111';
+        if (t === T.WALL) color = '#555';
+        else if (t === T.GRASS || t === T.GRASS_DARK || t === T.PLANT || t === T.TREE) color = '#1e3f20';
+        else if (t === T.PATH) color = '#5c4033';
+        else if (t === T.WATER) color = '#1a6b8a';
+        else if (t === T.FLOOR_ROOM || t === T.FLOOR_HALL || t === T.FLOOR_MAIN) color = '#2a2a35';
+        else if (SOLID.has(t)) color = '#4a4a5a';
+
+        ctx.fillStyle = color;
+        ctx.fillRect(c * 4, r * 4, 4, 4);
+      }
+    }
+  }
+
+  _drawMinimap() {
+    const ctx = this.mmCtx;
+    ctx.clearRect(0, 0, 120, 96);
+    ctx.drawImage(this.mmBg, 0, 0);
+
+    // Draw Gardener's Vision Cone on Minimap
+    ctx.save();
+    ctx.scale(1/8, 1/8); // Map down game coordinates to minimap dimensions
+    castCone(ctx, this.gardener.x + 16, this.gardener.y + 16, this.gardener.angle, this.gardener.fov, this.gardener.visionRange, this.map, false);
+    ctx.restore();
+
+    const drawDot = (x, y, color, size = 2) => {
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x / 8, y / 8, size, 0, TAU); ctx.fill();
+    };
+
+    drawDot(this.alchemist.x + 16, this.alchemist.y + 16, '#f1c40f'); // Alchemist
+    drawDot(this.gardener.x + 16, this.gardener.y + 16, '#e74c3c');   // Gardener
+    drawDot(this.player.x + 16, this.player.y + 16, '#00ffff', 2.5);  // Harry
+  }
+
   // ── DRAW ────────────────────────────────────────
   draw() {
     const ZOOM = 2;
@@ -2065,6 +2128,9 @@ class Game {
       ctx.restore();
     });
     ctx.restore();
+
+    // Render the minimap
+    this._drawMinimap();
   }
 
   // ── SCREENS ─────────────────────────────────────
