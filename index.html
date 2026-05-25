@@ -84,6 +84,7 @@ body {
   background: rgba(255,255,255,0.06);
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
 }
 
 .bar-fill {
@@ -142,19 +143,22 @@ body {
 /* ── MESSAGE BOX ─────────────────────────────── */
 #msgBox {
   position: absolute;
-  bottom: 80px; left: 50%;
-  transform: translateX(-50%);
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: #ddd;
-  padding: 7px 18px;
-  font-size: 12px;
-  border-radius: 20px;
+  top: 40%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(8, 8, 20, 0.95);
+  border: 2px solid var(--gold);
+  color: #fff;
+  padding: clamp(8px, 1.5vh, 12px) clamp(12px, 3vw, 24px);
+  font-size: clamp(10px, 3.5vw, 14px);
+  font-weight: bold;
+  border-radius: 8px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.25s;
   z-index: 25;
-  white-space: nowrap;
+  max-width: 85vw;
+  text-align: center;
+  white-space: pre-wrap;
   letter-spacing: 0.5px;
   backdrop-filter: blur(6px);
 }
@@ -219,7 +223,8 @@ body {
 #btnPump   { width: 66px; height: 66px; bottom: 106px; right: 28px; border-color: rgba(52,152,219,0.7); font-size: 12px; }
 #btnInteract{ width: 56px; height: 56px; bottom: 58px;  right: 106px; border-color: rgba(46,204,113,0.7); }
 #btnPickup { width: 56px; height: 56px; bottom: 140px;  right: 106px; border-color: rgba(231,76,60,0.7); }
-#btnSprint { width: 56px; height: 56px; bottom: 300px; left: 329px; border-color: rgba(243, 156, 18, 0.7); }
+#btnSprint { width: 56px; height: 56px; bottom: 200px; right: 28px; border-color: rgba(243, 156, 18, 0.7); }
+#btnRead   { width: 56px; height: 56px; bottom: 156px; left: 62px; border-color: rgba(241, 196, 15, 0.9); display: none; z-index: 30; }
 
 /* ── SCREENS ─────────────────────────────────── */
 .screen {
@@ -371,7 +376,10 @@ body {
   <div id="hud">
     <div class="hud-row">
       <span class="hud-label">Noise</span>
-      <div class="bar-track"><div class="bar-fill" id="noiseFill" style="width:0%"></div></div>
+      <div class="bar-track">
+        <div class="bar-fill" id="noiseFill" style="width:0%"></div>
+        <div style="position:absolute; top:0; bottom:0; left:75%; width:2px; background:var(--red); z-index:2;"></div>
+      </div>
     </div>
     <div class="hud-row">
       <span class="hud-label">Bucket</span>
@@ -426,6 +434,7 @@ body {
     <button class="mobileBtn" id="btnPickup">PICK</button>
     <button class="mobileBtn" id="btnInteract">POUR</button>
     <button class="mobileBtn" id="btnSprint">SPRINT</button>
+    <button class="mobileBtn" id="btnRead">READ</button>
   </div>
 
   <!-- Start Screen -->
@@ -1071,7 +1080,7 @@ class Player {
       const interval = sprinting?12:24;
       if (this.footTimer>=interval) {
         this.footTimer=0;
-        Noise.add((this.hasBucket?3:sprinting?8:1.5)*this.noiseMult(map));
+        Noise.add((this.hasBucket?3:sprinting?14:1.5)*this.noiseMult(map));
       }
     } else {
       if (this.state==='walking'||this.state==='sprinting'||this.state==='carrying')
@@ -1560,6 +1569,7 @@ class Game {
       el.addEventListener('mouseleave', release);
     };
     addBtn('btnPump', 'space'); addBtn('btnInteract', 'f');
+    addBtn('btnRead', 'space');
     addBtn('btnPickup', 'e');   addBtn('btnSprint', 'shift');
   }
 
@@ -1610,6 +1620,7 @@ class Game {
     this.currentTubeFill=0; window._tubeFill=0;
     this.pumpActive=false; this.pumpCooldown=0;
     this.neverDetected=true; this.alchemistNearly=false; this.noiseWarned=false;
+    this.alchemistWarnedDialogue = false;
     this.metGardener = false;
     this.metGardenerBucket = false;
     this.metAlchemist = false;
@@ -1705,6 +1716,13 @@ class Game {
     if (Noise.ratio>0.75 && !this.noiseWarned) {
       Msg.show('⚠ Too loud! The Alchemist is stirring…', 2500);
       this.noiseWarned=true;
+      if (!this.alchemistWarnedDialogue) {
+        this.alchemistWarnedDialogue = true;
+        this.startDialogue([
+          { speaker: 'Alchemist', text: "Who is that????", img: Img.aAngry },
+          { speaker: 'Harry', text: "Stay quiet, move slow", img: Img.hIdle }
+        ]);
+      }
     } else if (Noise.ratio<0.45) { this.noiseWarned=false; }
 
     // ── DOORS ──
@@ -1781,7 +1799,7 @@ class Game {
       if (dist<TILE*1.8) {
         this.pumpCooldown=22; this.pumpActive=true;
         p.bucketFill=Math.min(100, p.bucketFill+9);
-        Noise.add(6*p.noiseMult(this.map));
+        Noise.add(12*p.noiseMult(this.map));
         Audio_.pump();
         this.particles.emit(p.x+22, p.y+5, {vx:0,vy:-1,life:28,color:'#d5f5f6',size:4,spread:1.5});
         if (p.bucketFill>=100) Msg.show('Bucket full! Press E to pick up.', 2000);
@@ -1813,7 +1831,7 @@ class Game {
       this.currentTubeFill = Math.min(100, (this.currentTubeFill || 0) + 2);
       window._tubeFill = this.currentTubeFill / 100;
       p.state='pouring';
-      Noise.add(0.8*p.noiseMult(this.map));
+      Noise.add(1.8*p.noiseMult(this.map));
       Audio_.startPour();
       this.particles.emit(p.x+18+Math.random()*6, p.y+22,
         {vx:.2,vy:.4,life:18,color:'#d5f5f6',size:3,spread:1});
@@ -1972,6 +1990,31 @@ class Game {
       this.stealthPnl.className='';
     }
 
+    // Dynamically update mobile buttons based on context
+    const btnPump = document.getElementById('btnPump');
+    const btnPickup = document.getElementById('btnPickup');
+    const btnInteract = document.getElementById('btnInteract');
+    const btnRead = document.getElementById('btnRead');
+
+    if (btnPump) {
+      btnPump.style.display = 'flex';
+    }
+    if (btnPickup) {
+      btnPickup.style.display = 'flex';
+      btnPickup.textContent = this.player.hasBucket ? 'Drop' : 'Pick';
+    }
+    if (btnInteract) {
+      btnInteract.style.display = 'flex';
+    }
+    if (btnRead) {
+      const nearBoard = this._nearTile(T.BOARD);
+      if (nearBoard) {
+        btnRead.style.display = 'flex';
+      } else {
+        btnRead.style.display = 'none';
+      }
+    }
+
     // Dynamically position pour bar over the tube
     if (this.pourBar.style.opacity === '1') {
       const ZOOM = 2;
@@ -1998,6 +2041,8 @@ class Game {
         else if (t === T.PATH) color = '#5c4033';
         else if (t === T.WATER) color = '#1a6b8a';
         else if (t === T.FLOOR_ROOM || t === T.FLOOR_HALL || t === T.FLOOR_MAIN) color = '#2a2a35';
+        else if (t === T.PUMP) color = '#3498db';
+        else if (t === T.TUBE) color = '#9b59b6';
         else if (SOLID.has(t)) color = '#4a4a5a';
 
         ctx.fillStyle = color;
@@ -2021,6 +2066,9 @@ class Game {
       ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x / 8, y / 8, size, 0, TAU); ctx.fill();
     };
 
+    if (this.bucketOnGround) {
+      drawDot(this.bucketX + 16, this.bucketY + 16, '#ecf0f1', 1.5); // Bucket
+    }
     drawDot(this.alchemist.x + 16, this.alchemist.y + 16, '#f1c40f'); // Alchemist
     drawDot(this.gardener.x + 16, this.gardener.y + 16, '#e74c3c');   // Gardener
     drawDot(this.player.x + 16, this.player.y + 16, '#00ffff', 2.5);  // Harry
