@@ -634,6 +634,7 @@ function buildMap() {
   fill(0,12,9,13, T.FLOOR_HALL);
   set(0,12, T.WALL); set(0,13, T.WALL);
   set(1,12, T.TAP); set(1,13, T.WALL);
+  set(3,12, T.TUBE);
 
   // Horizontal Hallway (rows 10-13, cols 0-13)
   fill(10,0,13,13, T.FLOOR_HALL);
@@ -654,7 +655,8 @@ function buildMap() {
   fill(10,23,11,23, T.SHELF);
   set(0,17,T.WINDOW); set(0,21,T.WINDOW); set(0,25,T.WINDOW);
   set(1,15,T.LANTERN); set(3,27,T.LANTERN); set(9,27,T.LANTERN); set(10,17,T.LANTERN);
-  set(10,26, T.TUBE); set(10,27, T.TUBE);
+  set(10,26, T.TUBE);
+  set(4,23, T.TUBE);
 
   // Garden (rows 14-23, cols 0-29)
   fill(14,0,23,29, T.GRASS);
@@ -669,6 +671,8 @@ function buildMap() {
   });
   fill(14,0,14,29, T.PATH);
   for(let r=14;r<=23;r++) { set(r,29,T.FENCE); set(r,0,T.FENCE); }
+  set(18,27, T.TUBE);
+  set(18,3, T.TUBE);
 
   return m;
 }
@@ -787,9 +791,19 @@ function drawTile(ctx, c, r, tile, sx, sy, frame, state, deferred) {
         }
       }
       return;
-    case T.TUBE:
-      floorUnder(Img.floorM1);
-      drawSprite(ctx, state.tubeFill > 0 ? Img.tubeF : Img.tubeE, x + 6, y + 6, 20, 20); return;
+    case T.TUBE: {
+      let bgFloor = Img.floorM1;
+      if (r >= 14) {
+        if (c >= 2 && c <= 5) bgFloor = Img.path;
+        else bgFloor = Math.abs((c * 7 + r * 13) % 8) === 0 ? Img.grassDk1 : Img.grassDk2;
+      } else if (c <= 13 && r <= 13) {
+        bgFloor = Img.floorH;
+      }
+      floorUnder(bgFloor);
+      const tube = state.getTube(r, c);
+      const isFilled = tube ? tube.filled : false;
+      drawSprite(ctx, isFilled ? Img.tubeF : Img.tubeE, x + 6, y + 6, 20, 20); return;
+    }
     case T.TAP:
       drawSprite(ctx, Img.floorH, x, y);
       drawSprite(ctx, frame%60<30 ? Img.tapWater : Img.tap, x, y); return;
@@ -861,7 +875,8 @@ const SndConfig = {
   yell:     { src: 'assets/sound/yelling.mp3', vol: 0.9 },
   busted:   { src: 'assets/sound/busted.mp3', vol: 0.8 },
   gameover: { src: 'assets/sound/Game_over.mp3', vol: 0.8 },
-  win:      { src: 'assets/sound/win.mp3', vol: 0.8 }
+  win:      { src: 'assets/sound/win.mp3', vol: 0.8 },
+  pump_yes: { src: 'assets/sound/pump_yes.mp3', vol: 0.8 }
 };
 
 const Audio_ = (() => {
@@ -925,7 +940,8 @@ const Audio_ = (() => {
     yell()     { this.play('yell'); },
     growl()    { this.play('growl'); },
     water()    { this.play('water'); },
-    refill()   { this.play('refill'); }
+    refill()   { this.play('refill'); },
+    pumpYes()  { this.play('pump_yes'); }
   };
 })();
 
@@ -1461,10 +1477,13 @@ class Game {
 
     // Progress
     this.tubeCount    = 0;
-    this.currentTubeFill = 0;
+    this.activeTube   = null;
     this.pourProgress = 0;
     this.pumpActive   = false;
     this.pumpCooldown = 0;
+
+    this.tubes = [];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(this.map[r][c]===T.TUBE) this.tubes.push({r,c,fillProgress:0,filled:false});
 
     // Scoring
     this.startTime       = 0;
@@ -1609,6 +1628,8 @@ class Game {
     Audio_.stop('water');
     this.map       = buildMap();
     window._map    = this.map;
+    this.tubes     = [];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(this.map[r][c]===T.TUBE) this.tubes.push({r,c,fillProgress:0,filled:false});
     this._initMinimapBg();
     this.player    = new Player();
     this.gardener  = new Gardener();
@@ -1617,7 +1638,7 @@ class Game {
     this.doors     = this._initDoors();
     this.bucketOnGround = true;
     this.tubeCount=0; this.pourProgress=0;
-    this.currentTubeFill=0; window._tubeFill=0;
+    this.activeTube=null;
     this.pumpActive=false; this.pumpCooldown=0;
     this.neverDetected=true; this.alchemistNearly=false; this.noiseWarned=false;
     this.alchemistWarnedDialogue = false;
@@ -1673,11 +1694,12 @@ class Game {
     const introDialogues = [
       { speaker: 'Gardener', text: "My job was to simply water the plants.", img: Img.gIdle },
       { speaker: 'Gardener', text: "This rangling noise, the boy Haary causing is just... annoying.", img: Img.gIdle },
-      { speaker: 'Harry', text: "Is that so?", img: Img.hIdle },
+      { speaker: 'Gardener', text: "Thanni adikure gap la, Nee!!!", img: Img.gIdle },
+      { speaker: 'Harry', text: "HAHAHA, Is that so?", img: Img.hIdle },
       { speaker: 'Gardener', text: "If I found you pumping your pump again!! You are grounded!", img: Img.gIdle },
       { speaker: 'Harry', text: "Lets see, I am gonna pump until my last breath.", img: Img.hIdle },
-      { speaker: 'Harry', text: "Fill the tube in the main room without waking up the Alchemist", img: Img.hIdle },
-      { speaker: 'System', text: "General rules: Do not wake alchemist by making too much noise. Do not get caught pumping or moving the bucket with white fuel. Fill the tube 5 times silently to escape the matrix.", img: null },
+      { speaker: 'Harry', text: "Fill the 5 tubes scattered across the map without waking up the Alchemist", img: Img.hIdle },
+      { speaker: 'System', text: "General rules: Do not wake alchemist by making too much noise. Do not get caught pumping or moving the bucket with white fuel. Fill all 5 tubes silently to escape the matrix.", img: null },
       { speaker: 'Harry', text: "If we win, we shall open a cafe :)", img: Img.hIdle }
     ];
     this.startDialogue(introDialogues, () => {
@@ -1798,11 +1820,15 @@ class Game {
       const dist=Math.hypot(p.x-this.bucketX, p.y-this.bucketY);
       if (dist<TILE*1.8) {
         this.pumpCooldown=22; this.pumpActive=true;
+        const prevFill = p.bucketFill;
         p.bucketFill=Math.min(100, p.bucketFill+9);
         Noise.add(12*p.noiseMult(this.map));
         Audio_.pump();
         this.particles.emit(p.x+22, p.y+5, {vx:0,vy:-1,life:28,color:'#d5f5f6',size:4,spread:1.5});
-        if (p.bucketFill>=100) Msg.show('Bucket full! Press E to pick up.', 2000);
+        if (p.bucketFill>=100) {
+          Msg.show('Bucket full! Press E to pick up.', 2000);
+          if (prevFill < 100) Audio_.pumpYes();
+        }
       } else {
         Msg.show('Bring the bucket near the pump first.', 1500);
       }
@@ -1824,12 +1850,13 @@ class Game {
     }
 
     // POUR (F)
-    const isPouring = (Input.fDown || (Input.f && this.pourProgress > 0)) && p.hasBucket && this._nearTile(T.TUBE) && p.bucketFill > 0;
+    const nearbyTube = this._getNearTube();
+    const isPouring = (Input.fDown || (Input.f && this.pourProgress > 0)) && p.hasBucket && nearbyTube && !nearbyTube.filled && p.bucketFill > 0;
     if (isPouring) {
+      this.activeTube = nearbyTube;
       this.pourProgress+=2;
       p.bucketFill=Math.max(0, p.bucketFill-2);
-      this.currentTubeFill = Math.min(100, (this.currentTubeFill || 0) + 2);
-      window._tubeFill = this.currentTubeFill / 100;
+      this.activeTube.fillProgress = Math.min(100, this.activeTube.fillProgress + 2);
       p.state='pouring';
       Noise.add(1.8*p.noiseMult(this.map));
       Audio_.startPour();
@@ -1837,19 +1864,19 @@ class Game {
         {vx:.2,vy:.4,life:18,color:'#d5f5f6',size:3,spread:1});
       // Pour bar UI
       this.pourBar.style.opacity='1';
-      this.pourFill.style.width=this.currentTubeFill+'%';
+      this.pourFill.style.width=this.activeTube.fillProgress+'%';
 
-      if (this.currentTubeFill >= 100) {
+      if (this.activeTube.fillProgress >= 100) {
+        this.activeTube.filled = true;
         this.tubeCount++;
-        this.currentTubeFill = 0;
-        window._tubeFill = 0;
         this.pourProgress=0;
         this.pourBar.style.opacity='0'; this.pourFill.style.width='0%';
+        this.activeTube = null;
         Audio_.stopPour();
         Audio_.pickup();
         Msg.show(`Tube filled! ${this.tubeCount}/5`, 1500);
         for(let i=0;i<16;i++)
-          this.particles.emit(p.x+16,p.y+16,
+          this.particles.emit(nearbyTube.c*TILE+16,nearbyTube.r*TILE+16,
             {vx:(Math.random()-.5)*4, vy:-Math.random()*4, life:55,
              color:`hsl(${Math.random()*360},80%,65%)`, size:5, spread:0});
         if (this.tubeCount>=5) { this.state=GS.WIN; Audio_.win(); this._showWin(); }
@@ -1965,11 +1992,19 @@ class Game {
     return false;
   }
 
+  _getNearTube(range=TILE*1.8) {
+    const px=this.player.x+16, py=this.player.y+16;
+    for(const t of this.tubes) {
+      if(Math.hypot(px-t.c*TILE-16, py-t.r*TILE-16)<range) return t;
+    }
+    return null;
+  }
+
   _updateHUD() {
     this.hudNoise.style.width=(Noise.ratio*100)+'%';
     const bf=this.player.hasBucket ? this.player.bucketFill : this.bucketOnGround?this.player.bucketFill:0;
     this.hudBucket.style.width=bf+'%';
-    this.hudTubeFill.style.width=(this.currentTubeFill||0)+'%';
+    this.hudTubeFill.style.width=(this.activeTube ? this.activeTube.fillProgress : 0)+'%';
     this.hudTube.textContent=`${this.tubeCount} / 5`;
 
     const r=Noise.ratio;
@@ -2016,10 +2051,10 @@ class Game {
     }
 
     // Dynamically position pour bar over the tube
-    if (this.pourBar.style.opacity === '1') {
+    if (this.pourBar.style.opacity === '1' && this.activeTube) {
       const ZOOM = 2;
-      const sx = (27 * TILE - this.camX) * ZOOM; // 27 is the horizontal center of the two tube tiles
-      const sy = (10 * TILE - this.camY) * ZOOM - 30;
+      const sx = (this.activeTube.c * TILE + 16 - this.camX) * ZOOM;
+      const sy = (this.activeTube.r * TILE - this.camY) * ZOOM - 30;
       this.pourBar.style.left = `${sx}px`;
       this.pourBar.style.top = `${sy}px`;
     }
@@ -2097,7 +2132,7 @@ class Game {
     // Map tiles
     const tileState = {
       pumpActive: this.pumpActive,
-      tubeFill:   this.tubeCount/5,
+      getTube: (r,c) => this.tubes.find(t=>t.r===r&&t.c===c),
       tubeCount:  this.tubeCount,
       doorProgress: (r,c)=>{ const d=this.doors.find(d=>d.r===r&&d.c===c); return d?d.progress:0; },
     };
@@ -2274,7 +2309,7 @@ setInterval(() => {
       Msg.show('Near board — SPACE to read', 1500);
     else if (distB<TILE*1.8&&!p.hasBucket&&p.bucketFill>=100)
       Msg.show('Bucket full — E to pick up', 1500);
-    else if (p.hasBucket&&g._nearTile(T.TUBE))
+    else if (p.hasBucket&&g._getNearTube()&&!g._getNearTube().filled)
       Msg.show('Hold F to pour into the tube', 1500);
   }
 }, 4000);
